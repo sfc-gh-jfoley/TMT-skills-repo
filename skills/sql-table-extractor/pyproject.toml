@@ -1,0 +1,6 @@
+[project]
+name = "sql-table-extractor"
+version = "0.1.0"
+description = "Extract tables and columns from SQL queries with Snowflake support"
+requires-python = ">=3.11"
+dependencies = []
