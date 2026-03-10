@@ -87,6 +87,10 @@ We welcome contributions from anyone on the team. Here's how to add or improve s
 - Include trigger keywords in the `description` field so the skill is discoverable.
 - Test your skill locally before submitting (`cp` it into `~/.snowflake/cortex/skills/` and try it).
 - Avoid committing secrets, `.env` files, or large binary assets.
+- **Do NOT include Snowhouse references** (e.g., `snowhouse_import.*`, `SNOWHOUSE_IMPORT.*`, Snowhouse connections).
+- **Do NOT include internal schemas or UDFs** (e.g., `TEMP.VSHIV.*`, internal stages, internal Salesforce/SFDC data).
+- **Do NOT include customer names, account IDs, or any customer-identifiable information.**
+- If your skill needs internal data sources, keep it in a private repo instead.
 
 ---
 
