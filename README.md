@@ -10,6 +10,9 @@ A shared collection of [Cortex Code](https://docs.snowflake.com/en/user-guide/co
 |-------|-------------|
 | **[agent-evaluation](skills/agent-evaluation)** | Evaluate Cortex Agents using native Snowflake Agent Evaluations. Build evaluation datasets, run evaluations, and analyze accuracy metrics (correctness, tool selection, tool execution, logical consistency). |
 | **[bulk-rule-reviewer](skills/bulk-rule-reviewer)** | Execute agent-centric reviews on all rule files in a `rules/` directory and generate a prioritized improvement report. Supports FULL, FOCUSED, and STALENESS review modes. |
+| **[coco-usage](skills/coco-usage)** | Query Cortex Code CLI credit and token usage from `SNOWFLAKE.ACCOUNT_USAGE.CORTEX_CODE_CLI_USAGE_HISTORY`. Use when: coco credits, coco spend, how much have I used, usage this week, top users, session spend, token breakdown. |
+| **[cortex-accelerator](skills/cortex-accelerator)** | Guided discovery tool that validates business understanding before building Snowflake semantic views and Cortex Agents. Scans query history, schemas, and BI tools to detect gaps and conflicts, scores trust, and gates pipeline execution until a validated domain map is confirmed. |
+| **[cortex-agent-optimization](skills/cortex-agent-optimization)** | Iterative optimization of Snowflake Cortex Agents using strict dev/test eval splits. Covers project setup, instruction editing, build/deploy, eval execution, failure analysis, and accept/reject decisions with auto-termination after 3 consecutive rejections. |
 | **[doc-reviewer](skills/doc-reviewer)** | Review project documentation for accuracy, completeness, clarity, and structure. Verifies file references, tests commands, and validates links using a 6-dimension rubric. |
 | **[memory-organizer](skills/memory-organizer)** | Organize and maintain the `/memories` directory for optimal retrieval. Audits, deduplicates, archives completed projects, and rebuilds the index. |
 | **[plan-reviewer](skills/plan-reviewer)** | Review LLM-generated plans for autonomous agent executability using an 8-dimension rubric. Supports FULL, COMPARISON, and META-REVIEW modes. |
@@ -17,6 +20,7 @@ A shared collection of [Cortex Code](https://docs.snowflake.com/en/user-guide/co
 | **[rule-creator](skills/rule-creator)** | Create production-ready v3.2 Cursor rule files with template generation, schema validation, and RULES_INDEX.md indexing. Supports Python, Snowflake, JavaScript, Shell, Docker, Golang domains. |
 | **[rule-loader](skills/rule-loader)** | Load contextual coding rules from `~/.snowflake/cortex/rules/` for the current task. Always prompts before loading. |
 | **[rule-reviewer](skills/rule-reviewer)** | Execute agent-centric rule reviews (FULL/FOCUSED/STALENESS) using a 6-dimension rubric. Evaluates whether autonomous agents can execute rules without judgment calls. |
+| **[self-healing-pipeline](skills/self-healing-pipeline)** | Build, debug, and optimize self-healing data pipeline agents in Snowflake SQL using Cortex LLMs. Detects task/dynamic table failures, diagnoses root causes, generates and executes fixes with guardrails, and verifies downstream DAGs. |
 | **[skill-timing](skills/skill-timing)** | Measure skill execution time with microsecond precision. Tracks checkpoints, token usage, cost estimation, anomaly detection, and cross-model performance comparison. |
 | **[snowflake-ml-container-runtime](skills/snowflake-ml-container-runtime)** | Build ML training notebooks for Snowflake Container Runtime. Supports XGBoost, sklearn, LightGBM, PyTorch workflows with DataConnector and Model Registry integration. |
 | **[sql-table-extractor](skills/sql-table-extractor)** | Extract tables and columns referenced in SQL queries with Snowflake-specific syntax support. Useful for building table lineage, discovering schema usage, and semantic model preparation. |
@@ -101,7 +105,7 @@ Track what each contributor has added or changed. **Add your entry when you cont
 | Date | Contributor | Skill(s) | Change |
 |------|-------------|-----------|--------|
 | 2026-03-09 | @jfoley | 13 skills | Initial upload of skills collection (excluded internal-only skills) |
-| | | | |
+| 2026-04-07 | @jfoley | coco-usage, cortex-accelerator, cortex-agent-optimization, self-healing-pipeline | Add 4 new skills; update agent-evaluation, memory-organizer, rule-creator |
 
 ---
 

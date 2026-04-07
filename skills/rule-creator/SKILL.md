@@ -1,7 +1,6 @@
 ---
 name: rule-creator
-description: Create production-ready v3.2 Cursor rule files by orchestrating template generation, schema validation, and RULES_INDEX.md indexing. Triggers on keywords like "create rule", "add rule", "new rule", "generate rule". Supports Python, Snowflake, JavaScript, Shell, Docker, Golang domains (000-999 range).
-version: 1.3.0
+description: "Create production-ready v3.2 Cursor rule files by orchestrating template generation, schema validation, and RULES_INDEX.md indexing. Triggers: create rule, add rule, new rule, generate rule. Supports Python, Snowflake, JavaScript, Shell, Docker, Golang domains (000-999 range)."
 ---
 
 # Rule Creator
