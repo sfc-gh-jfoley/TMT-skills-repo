@@ -87,7 +87,26 @@ Distinguish failure confidence:
 
 **CRITICAL: Only analyze DEV failures. Do NOT examine TEST results at this stage.**
 
+### Step 3b: Populate Question Manifest
+
+If `<AGENT_NAME>_QUESTION_MANIFEST` exists, INSERT DEV results per run using the pattern from `references/question-manifest.md` with `SOURCE='optimize_dev'`, `ITERATION='<ITER_NAME>'`, `VARIANT=NULL`. If the table doesn't exist, skip.
+
 ## Step 4: Classify Failures
+
+### Step 4.0: Transfer Opportunity Check
+
+Before classifying, query the manifest for failing questions that passed under a different flag config:
+
+```sql
+SELECT INPUT_TEXT, VARIANT AS passing_variant, SCORE
+FROM <AGENT_NAME>_QUESTION_MANIFEST
+WHERE SOURCE = 'flag_sweep' AND METRIC_NAME = 'answer_correctness' AND SCORE >= 0.8
+  AND INPUT_ID IN (<failing INPUT_IDs from Step 3>);
+```
+
+If results exist, present them as context: the flag config may handle these questions differently. This informs classification but is not a gate. If no manifest exists, skip.
+
+### Step 4.1: Classification Tree
 
 Classify each high-confidence failure using this ordered decision tree. Evaluate conditions top-to-bottom; the first match is the classification.
 
@@ -196,8 +215,49 @@ Poll all runs in parallel using the parallel polling pattern from `references/ev
 
 Handle dataset version lock errors per-slot per `references/eval-setup.md` lock troubleshooting.
 
+### Step 8b: Populate Question Manifest (TEST)
+
+If `<AGENT_NAME>_QUESTION_MANIFEST` exists, INSERT TEST results per run using the pattern from `references/question-manifest.md` with `SOURCE='optimize_test'`, `ITERATION='<ITER_NAME>'`, `VARIANT=NULL`. If the table doesn't exist, skip.
+
 ## Step 9: Log Results
 
 Append the iteration to `optimization_log.md` with: run names, changes made, files changed, score table (DEV Mean ± StdDev | TEST Mean ± StdDev | Combined Mean per metric), comparison delta vs previous accepted iteration, and `Decision: PENDING`.
 
 Continue to `review/SKILL.md` for the accept/reject decision.
+
+## Step 10: Flag Re-validation Check (after review accepts)
+
+**This step runs ONLY after `review/SKILL.md` returns an ACCEPT decision.**
+
+Check if a flag sweep baseline exists:
+```bash
+ls <WORKSPACE_ROOT>/flag_sweep_baseline.json 2>/dev/null && echo "EXISTS" || echo "NONE"
+```
+
+**If NONE:** Skip — no flag sweep was done, so no re-validation needed.
+
+**If EXISTS:** Read `flag_sweep_baseline.json` and count accepted iterations since the last flag validation:
+
+1. Parse `revalidation_interval` from the baseline file (default: 3)
+2. Count accepted iterations in `optimization_log.md` since `sweep_date` (or last re-validation date)
+3. If count >= `revalidation_interval`:
+
+   Present to user:
+
+   > "You've accepted {N} instruction iterations since the last flag validation on {DATE}.
+   > Instruction changes can shift which flag config performs best.
+   > Want to re-validate the flag choice now?"
+   > 1. **Yes — run flag re-validation** (recommended)
+   > 2. **Skip for now** — continue optimizing, ask again after next accept
+   > 3. **Disable** — never auto-check (remove flag_sweep_baseline.json)
+
+   If **Yes:** Route to `flag-sweep/SKILL.md` with `mode=REVALIDATE`. That workflow will:
+   - Re-use the existing variant agents (listed in `variant_agents_kept`)
+   - Apply the CURRENT instructions to all variants (rebuild each variant with latest instructions + its flag config)
+   - Run fresh evals and compare to the baseline scores
+   - If the winner shifts or scores degrade >10%, HARD STOP for user decision
+   - Update `flag_sweep_baseline.json` with new scores and reset the iteration counter
+
+   If **Skip:** Increment a `deferred_count` in the baseline file. Ask again after the next accept.
+
+   If **Disable:** Delete `flag_sweep_baseline.json`. No further auto-checks.
