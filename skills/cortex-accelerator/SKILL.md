@@ -136,7 +136,8 @@ Read `validated_domain_map.json` before starting — the domain map drives all d
 - `validated_domain_map.excluded_tables[]` — tables to skip
 
 **ACTION**: Invoke `kg-data-discovery` skill.
-Tell the skill: "Run in AUTOPILOT mode. Emit the EMIT MANIFEST block at the end."
+Tell the skill: "execution mode: AUTOPILOT — emit the EMIT MANIFEST block at the end."
+**NOTE:** The message MUST start with "execution mode" to bypass kg-data-discovery's STEP ZERO interactive mode-selection prompt (AGENTS.md convention). Any other phrasing causes the pipeline to stall waiting for user input.
 
 Skip this phase if `pipeline_path = "VQR_DIRECT"` (clean schema, ≥ 75 scan score).
 In that case, jump directly to Phase 1 with INFORMATION_SCHEMA as the schema source.
@@ -231,7 +232,7 @@ Use `kg_manifest.stability_score` to select the downstream skill:
 - `kg_manifest.stability_score`
 
 **If ontology-stack-builder route (stability_score < 3):**
-Invoke `ontology-stack-builder` with:
+Invoke skill `ontology-stack-builder` with:
 - Phase 1b input = semantic views from Phase 2 (pass as existing SVs)
 - Business questions = `validated_domain_map.success_criteria[]`
 - Domain map entities and relationships already confirmed — pass as context

@@ -200,7 +200,7 @@ All KG operations are implemented as stored procedures. The skill orchestrates t
 | `REFRESH_DOMAIN(tier)` | Orchestrator: CRAWL→ENRICH→RELATIONSHIPS→sync | Scheduled or manual refresh |
 | `RUN_WATCH()` | Shadow detection + drift + triage | Scheduled or manual |
 
-**SQL files location:** `procs/kg-discovery/sql/` (00-10, deploy in order)
+**SQL files location:** `procs/sql/` (00-10, deploy in order)
 
 ---
 
@@ -502,7 +502,7 @@ If the user describes multiple operations:
 2. Read source tables from `DOMAIN_META.META.DOMAIN_CONFIG`
 3. Read top concepts from `CONCEPTS` ordered by `query_count` → surface to ontology-stack-builder as candidate classes
 4. Check for existing FK-based relationships in `RELATIONSHIPS` → surface as candidate ontology relations
-5. Invoke **ontology-stack-builder** skill with source tables + concepts as enrichment context + business questions derived from top concept keywords
+5. Invoke skill `ontology-stack-builder` with source tables + concepts as enrichment context + business questions derived from top concept keywords
 6. After ontology stack deployed, update `DOMAIN_CONFIG.ontology_agent` with the new agent FQN
 7. Future queries for this domain → ontology agent (dynamic ASSEMBLE remains as fallback for uncovered concepts)
 

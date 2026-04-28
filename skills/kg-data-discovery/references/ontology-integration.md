@@ -270,13 +270,10 @@ MAINTAIN (graduated domain):
 
 ## Skill Dependency
 
-This operation requires the **ontology-stack-builder** skill to be installed:
+The **ontology-stack-builder** skill must be present at `~/.snowflake/cortex/skills/ontology-stack-builder/`. Verify with:
 
 ```bash
 ls ~/.snowflake/cortex/skills/ontology-stack-builder/SKILL.md
-# If missing:
-git clone https://github.com/sfc-gh-tjia/coco_skill_ontology_stack_builder.git /tmp/ontology-stack-builder
-cp -r /tmp/ontology-stack-builder ~/.snowflake/cortex/skills/ontology-stack-builder
 ```
 
-The skill is invoked via the `skill` tool in Cortex Code — no direct script execution needed from kg-data-discovery.
+Invoke it via the standard CoCo skill invocation: `invoke skill ontology-stack-builder`

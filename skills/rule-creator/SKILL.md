@@ -270,7 +270,7 @@ review_mode: FULL
 model: <current>
 ```
 
-**Quality threshold:** Score ≥ 75/100, no CRITICAL issues, no HIGH issues in Actionability/Completeness. If score <75: report issues and recommend specific fixes before considering rule complete.
+**Quality threshold:** Score ≥ 87/115, no CRITICAL issues, no HIGH issues in Actionability/Completeness. If score <87: report issues and recommend specific fixes before considering rule complete.
 
 ## References
 

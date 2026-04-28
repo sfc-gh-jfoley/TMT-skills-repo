@@ -8,6 +8,8 @@ description: >
   Use when: flag comparison, A/B test agents, compare EnableAgenticAnalyst,
   compare feature flags, 3-way agent comparison, test agent variants,
   agent flag sweep, evaluate agent flags, which flag config is best.
+  Produces flag_sweep_baseline.json — consumed by cortex-agent-optimization
+  for automatic FLAG REVALIDATION after optimization iterations.
 ---
 
 ## Prerequisites

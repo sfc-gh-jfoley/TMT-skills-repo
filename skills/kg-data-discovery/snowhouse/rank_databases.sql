@@ -1,3 +1,4 @@
+-- DEMO-PREP ONLY: Run this in Snowhouse to rank customer databases for demo building. NOT required for customer account deployments.
 -- =============================================================================
 -- Rank candidate Snowhouse databases for artifact generation
 -- Read-only discovery query. Run in Snowhouse.

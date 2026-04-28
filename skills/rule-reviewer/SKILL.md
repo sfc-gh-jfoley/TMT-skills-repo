@@ -1,6 +1,6 @@
 ---
 name: rule-reviewer
-description: Execute agent-centric rule reviews (FULL/FOCUSED/STALENESS modes) using 6-dimension rubric and write results to reviews/rule-reviews/ with no-overwrite safety. Use when reviewing rule files, auditing rule quality, checking rule staleness, validating rule compliance, or analyzing agent executability.
+description: Execute agent-centric rule reviews (FULL/FOCUSED/STALENESS modes) using 8-dimension rubric and write results to reviews/rule-reviews/ with no-overwrite safety. Use when reviewing rule files, auditing rule quality, checking rule staleness, validating rule compliance, or analyzing agent executability.
 version: 2.4.0
 ---
 
@@ -23,7 +23,9 @@ Output: `reviews/rule-reviews/200-python-core-claude-sonnet-45-2026-01-06.md`
 
 (With `output_root: mytest/` → `mytest/rule-reviews/200-python-core-claude-sonnet-45-2026-01-06.md`)
 
-## Scoring System (105 points)
+## Scoring System (115 points)
+
+> **Scale note:** This skill uses a **115-point** max. `plan-reviewer` uses a 100-point max — both use 8 dimensions and the same Raw × (Weight/2) formula, but with different dimension weights tuned to their domain. Do not compare raw point totals across the two skills.
 
 **Raw Score Range:** 0-10 per dimension
 **Formula:** Raw (0-10) × (Weight / 2) = Points
@@ -47,7 +49,7 @@ Output: `reviews/rule-reviews/200-python-core-claude-sonnet-45-2026-01-06.md`
 
 ## Review Modes
 
-- **FULL:** All 7 dimensions scored
+- **FULL:** All 8 dimensions scored
 - **FOCUSED:** Actionability + Completeness only (50 points max)
 - **STALENESS:** Staleness dimension only (10 points max)
 
@@ -89,7 +91,7 @@ Output: `reviews/rule-reviews/200-python-core-claude-sonnet-45-2026-01-06.md`
 
 ## Workflow
 
-**Progress Display:** Show only `Starting: [rule-name]` and `Complete: [rule-name] → score/100`.
+**Progress Display:** Show only `Starting: [rule-name]` and `Complete: [rule-name] → score/115`.
 All canary checks, dimension scoring, and evidence gathering are INTERNAL (silent).
 
 1. **Validate inputs**
@@ -193,11 +195,11 @@ All canary checks, dimension scoring, and evidence gathering are INTERNAL (silen
 
 ## Verdicts
 
-**Score Ranges (based on 105-point scale):**
-- **94-105** - EXECUTABLE - Production-ready
-- **84-93** - EXECUTABLE_WITH_REFINEMENTS - Good, minor fixes
-- **63-83** - NEEDS_REFINEMENT - Needs work
-- **<63** - NOT_EXECUTABLE - Major issues
+**Score Ranges (based on 115-point scale):**
+- **103-115** - EXECUTABLE - Production-ready
+- **92-102** - EXECUTABLE_WITH_REFINEMENTS - Good, minor fixes
+- **70-91** - NEEDS_REFINEMENT - Needs work
+- **<70** - NOT_EXECUTABLE - Major issues
 
 **Critical dimension override:** If both Actionability ≤4/10 AND Completeness ≤4/10 → NOT_EXECUTABLE regardless of total score
 
@@ -212,14 +214,14 @@ All canary checks, dimension scoring, and evidence gathering are INTERNAL (silen
 - Domain-specific patterns and guidelines
 - Loaded on-demand by agents
 - Full schema validation against `schemas/rule-schema.yml`
-- All 6 dimensions scored (100 points max)
+- All 8 dimensions scored (115 points max)
 - TokenBudget variance check applies
 
 **Project Files (AGENTS.md, PROJECT.md):**
 - Bootstrap and configuration documents
 - Loaded once during project initialization
 - Schema validation skipped (different structure than rules)
-- All 6 dimensions scored (100 points max)
+- All 8 dimensions scored (115 points max)
 - TokenBudget variance skipped (no declared budget)
 - Still evaluated for actionability, completeness, consistency, markdown quality, and currency
 
@@ -232,7 +234,7 @@ All canary checks, dimension scoring, and evidence gathering are INTERNAL (silen
 | Token efficiency | Budget variance + redundancy | Redundancy + structure only |
 | Metadata required | 7 fields (SchemaVersion, etc.) | None |
 | Section structure | Scope → Contract → Content | Custom per project |
-| Max score | 100 points | 100 points |
+| Max score | 115 points | 115 points |
 
 **Both file types are agent-executable documents** - they just follow different schemas optimized for their architectural roles.
 
@@ -241,7 +243,7 @@ All canary checks, dimension scoring, and evidence gathering are INTERNAL (silen
 1. Executive Summary (scores table)
 2. Schema Validation Results
 3. Agent Executability Verdict
-4. Dimension Analysis (7 sections for FULL mode)
+4. Dimension Analysis (8 sections for FULL mode)
 5. Critical Issues (list)
 6. Recommendations (prioritized)
 7. Post-Review Checklist
@@ -384,7 +386,7 @@ Before starting ANY review work, confirm each item:
 - [ ] Schema validation attempted
 - [ ] Agent Execution Test completed
 - [ ] Line count measured (`wc -l`)
-- [ ] All dimensions scored (FULL mode - 7 dimensions)
+   - [ ] All dimensions scored (FULL mode - 8 dimensions)
 - [ ] Recommendations include line numbers
 
 **Post-execution:**
@@ -417,12 +419,12 @@ Before starting ANY review work, confirm each item:
 - Read complete rule file
 - Run schema validator
 - Measure line count (`wc -l`)
-- Score all dimensions per rubrics (7 for FULL mode)
+- Score all dimensions per rubrics (8 for FULL mode)
 - Generate specific recommendations
 - Write complete review
 
 **DON'T:**
-- Skip dimensions (FULL mode requires all 7)
+- Skip dimensions (FULL mode requires all 8)
 - Estimate scores without rubrics
 - Generate generic recommendations
 - Abbreviate review to save tokens
@@ -590,7 +592,7 @@ Before considering review complete:
 - [ ] Schema validator executed
 - [ ] Agent Execution Test performed
 - [ ] Line count measured (`wc -l`)
-- [ ] All required dimensions scored (7 for FULL mode)
+   - [ ] All required dimensions scored (8 for FULL mode)
 - [ ] Each score has rationale
 - [ ] Critical issues identified
 - [ ] Rule Size flags applied if applicable

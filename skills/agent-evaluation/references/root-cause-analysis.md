@@ -1,6 +1,6 @@
 ### 5.3 Root Cause Analysis by Metric
 
-#### Low `correctness`
+#### Low `answer_correctness`
 
 The agent gives wrong or incomplete answers.
 
@@ -64,7 +64,7 @@ Evaluation questions don't match the agent's persona. Check `DESCRIBE AGENT` for
 
 ### "No current database" Error
 
-`SYSTEM$CREATE_EVALUATION_DATASET` requires database context:
+`EXECUTE_AI_EVALUATION` requires database context set before calling:
 ```sql
 USE DATABASE <DATABASE>;
 USE SCHEMA <SCHEMA>;

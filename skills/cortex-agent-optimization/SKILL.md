@@ -9,7 +9,9 @@ description: >
   Triggers: optimize agent, agent eval, improve agent, agent iteration,
   run eval, optimization loop, agent instructions, eval split,
   run optimization, next iteration, analyze agent failures, accept reject iteration,
-  flag sweep, compare agents, flag comparison, A/B test agents.
+  flag sweep, revalidate flags, flag recheck.
+  Note: for standalone 3-variant flag comparison use agent-flag-tester. This skill's
+  FLAG SWEEP sub-skill handles flag revalidation within an active optimization project.
 ---
 
 ## When to Use
@@ -42,7 +44,7 @@ Detect the user's intent and route to the appropriate sub-skill:
 | **OPTIMIZE** | "run iteration", "optimize", "improve agent", "next iteration", "run eval", "analyze failures", "resume iteration" | Load `optimize/SKILL.md` and follow its workflow |
 | **REVIEW** | "review results", "accept or reject", "compare iterations", "check test scores", "finalize iteration" | Load `review/SKILL.md` and follow its workflow |
 | **EVAL DATA** | "create eval split", "validate split", "check eval balance", "split quality", "re-balance eval", "eval dataset" | Load `eval-data/SKILL.md` and follow its workflow |
-| **FLAG SWEEP** | "flag comparison", "compare agents", "flag sweep", "A/B test agents", "compare EnableAgenticAnalyst", "compare feature flags", "3-way comparison" | Load `flag-sweep/SKILL.md` and follow its workflow |
+| **FLAG SWEEP** | "flag sweep", "revalidate flags", "re-run flag comparison", "compare EnableAgenticAnalyst", "compare feature flags" | Load `flag-sweep/SKILL.md` and follow its workflow. **Note:** for standalone 3-variant comparison from scratch (no active optimization project), route to `agent-flag-tester` instead. |
 | **FLAG REVALIDATION** | "revalidate flags", "re-test flags", "flag recheck", "confirm flag choice", "flags still hold", auto-triggered after 3 accepted iterations | Load `flag-sweep/SKILL.md` with `mode=REVALIDATE` (see below) |
 
 **Auto-trigger:** If `flag_sweep_baseline.json` exists in the workspace AND the optimization log shows `revalidation_interval` accepted iterations since the last flag validation, automatically suggest FLAG REVALIDATION before the next OPTIMIZE iteration. The user can defer ("skip for now") or proceed.

@@ -41,10 +41,10 @@ Execute comprehensive agent-centric reviews on all rule files in `rules/` direct
 
 (Default `output_root: reviews/`. With `output_root: mytest/` → `mytest/rule-reviews/...` and `mytest/summaries/...`)
 1. Executive Summary (score distribution, dimension analysis)
-2. Priority 1: Urgent (score <60, NOT_EXECUTABLE)
-3. Priority 2: High (score 60-79, NEEDS_REFINEMENT)
-4. Priority 3: Medium (score 80-89, EXECUTABLE_WITH_REFINEMENTS)
-5. Priority 4: Excellent (score 90-100, EXECUTABLE)
+2. Priority 1: Urgent (score <70, NOT_EXECUTABLE)
+3. Priority 2: High (score 70-91, NEEDS_REFINEMENT)
+4. Priority 3: Medium (score 92-102, EXECUTABLE_WITH_REFINEMENTS)
+5. Priority 4: Excellent (score 103-115, EXECUTABLE)
 6. Failed Reviews (execution errors)
 7. Top 10 Recommendations (impact × effort prioritization)
 8. Next Steps (immediate/short-term/long-term)
@@ -98,7 +98,7 @@ Execute comprehensive agent-centric reviews on all rule files in `rules/` direct
 
 1. Read ONE rule file completely
 2. Run schema validator for THAT rule
-3. Apply ALL 7 rubrics to THAT rule
+3.    Apply ALL 8 rubrics to THAT rule
 4. Write review file for THAT rule
 5. THEN move to next rule
 
@@ -131,7 +131,7 @@ If ANY check fails: STOP, re-read Anti-Optimization Protocol, resume with ONE ru
 
 After EACH rule review, output exactly:
 ```
-[N/124] Complete: {filename} → {score}/100
+[N/124] Complete: {filename} → {score}/115
 ```
 
 This output MUST appear after writing EACH review file. If you see yourself planning to output multiple completion messages at once, you are batching - STOP immediately.
@@ -216,7 +216,7 @@ Do NOT display intermediate analysis to the user.
 
 **SHOW to user (concise, one line each):**
 - `[45/113] Starting: 310-zsh-scripting-core.md`
-- `[45/113] Complete: 310-zsh-scripting-core.md → 95.5/100`
+- `[45/113] Complete: 310-zsh-scripting-core.md → 95.5/115`
 - Every 10 rules: brief aggregate summary (e.g., "Progress: 50/113, avg 87.2")
 
 **DO NOT DISPLAY (internal processing only):**
@@ -400,7 +400,7 @@ Skills are NOT rules. Do not apply rule optimization principles here:
 ### Verification
 
 Each review must contain:
-- Executive Summary with scores table (all 6 dimensions for FULL mode)
+- Executive Summary with scores table (all 8 dimensions for FULL mode)
 - Schema Validation Results (from schema_validator.py output)
 - Agent Executability Verdict (based on Agent Execution Test)
 - Dimension Analysis sections (detailed scoring rationale)
@@ -837,7 +837,7 @@ model: claude-sonnet-45
 
 **Score distribution:** Average, median, distribution by priority tier.
 
-**Dimension analysis:** Average scores for all 6 dimensions.
+**Dimension analysis:** Average scores for all 8 dimensions.
 
 **Critical issues summary:** Count of rules with 0, 1-2, 3+ critical issues.
 

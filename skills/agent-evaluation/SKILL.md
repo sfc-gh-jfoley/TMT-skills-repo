@@ -11,7 +11,7 @@ End-to-end workflow for evaluating Cortex Agents: discover the agent, build an e
 
 | Metric | API Name | Requires Ground Truth | Description |
 |--------|----------|----------------------|-------------|
-| Answer Correctness | `correctness` | Yes | Semantic match of agent's final answer vs expected |
+| Answer Correctness | `answer_correctness` | Yes | Semantic match of agent's final answer vs expected |
 | Tool Selection Accuracy | `tool_selection_accuracy` | Yes | Did agent pick the right tools in the right order? |
 | Tool Execution Accuracy | `tool_execution_accuracy` | Yes | Correct tool inputs/outputs? |
 | Logical Consistency | `logical_consistency` | No | Consistency across instructions, planning, and tool calls (reference-free) |
@@ -78,7 +78,7 @@ Ask user which metrics to evaluate:
 ```
 Which metrics do you want to evaluate?
 
-1. [ ] correctness — Does the agent give correct final answers?
+1. [ ] answer_correctness — Does the agent give correct final answers?
        Requires: expected answer text for each question
 
 2. [ ] tool_selection_accuracy — Does the agent pick the right tools?
@@ -98,7 +98,7 @@ Select metrics (e.g., "1,2,4" or "all"):
 | Selection | Dataset Needs |
 |-----------|--------------|
 | Only `logical_consistency` | Just `INPUT_QUERY` — skip to Phase 3C |
-| `correctness` | `ground_truth_output` + `ground_truth_invocations` with `tool_name`/`tool_sequence` |
+| `answer_correctness` | `ground_truth_output` + `ground_truth_invocations` with `tool_name`/`tool_sequence` |
 | `tool_selection_accuracy` | `ground_truth_invocations` with `tool_name`/`tool_sequence` |
 | `tool_execution_accuracy` | Above + `tool_output` (SQL patterns or search results) |
 
@@ -272,49 +272,86 @@ USE DATABASE <DATABASE>;
 USE SCHEMA <SCHEMA>;
 ```
 
-### 4.2 Register the Dataset
+### 4.2 Create Stage and Generate Eval Config
+
+Create a stage to hold eval config files:
 
 ```sql
-CALL SYSTEM$CREATE_EVALUATION_DATASET(
-    'Cortex Agent',
-    '<DATABASE>.<SCHEMA>.<AGENT_NAME>_EVAL_DATASET',
-    '<AGENT_NAME>_EVAL_DS_<YYYYMMDD_HHMMSS>',
-    OBJECT_CONSTRUCT(
-        'query_text', 'INPUT_QUERY',
-        'expected_tools', 'EXPECTED_TOOLS'
-    )
-);
+CREATE STAGE IF NOT EXISTS <DATABASE>.<SCHEMA>.AGENT_EVAL_CONFIGS
+  ENCRYPTION = (TYPE = 'SNOWFLAKE_SSE');
+```
+
+Generate a YAML eval config file (`/tmp/eval_config.yaml`) using the template below.
+Fill in `<DATABASE>`, `<SCHEMA>`, `<AGENT_NAME>`, `<EVAL_TABLE>`, and the selected metrics:
+
+```yaml
+dataset:
+  dataset_type: "CORTEX AGENT"
+  table_name: "<DATABASE>.<SCHEMA>.<AGENT_NAME>_EVAL_DATASET"
+  dataset_name: "<AGENT_NAME>_EVAL_DS_<YYYYMMDD_HHMMSS>"
+  column_mapping:
+    query_text: "INPUT_QUERY"
+    ground_truth: "EXPECTED_TOOLS"
+
+evaluation:
+  agent_params:
+    agent_name: "<DATABASE>.<SCHEMA>.<AGENT_NAME>"
+    agent_type: "CORTEX AGENT"
+  run_params:
+    label: "evaluation"
+    description: "Evaluation: <brief description>"
+  source_metadata:
+    type: "DATASET"
+    dataset_name: "<AGENT_NAME>_EVAL_DS_<YYYYMMDD_HHMMSS>"
+
+metrics:
+  - "answer_correctness"       # include only if selected
+  - "logical_consistency"      # include only if selected
+  - "tool_selection_accuracy"  # include only if selected
+  - "tool_execution_accuracy"  # include only if selected
+```
+
+Upload to stage:
+
+```sql
+PUT 'file:///tmp/eval_config.yaml'
+    @<DATABASE>.<SCHEMA>.AGENT_EVAL_CONFIGS/
+    AUTO_COMPRESS=FALSE OVERWRITE=TRUE;
 ```
 
 ### 4.3 Run the Evaluation
 
 ```sql
-CALL SYSTEM$EXECUTE_AI_OBSERVABILITY_RUN(
-    OBJECT_CONSTRUCT(
-        'object_name', '<DATABASE>.<SCHEMA>.<AGENT_NAME>',
-        'object_type', 'CORTEX AGENT'
-    ),
-    OBJECT_CONSTRUCT(
-        'run_name', '<AGENT_NAME>_eval_<YYYYMMDD_HHMMSS>',
-        'label', 'evaluation',
-        'description', 'Evaluation: <brief description>'
-    ),
-    OBJECT_CONSTRUCT(
-        'type', 'dataset',
-        'dataset_name', '<DATABASE>.<SCHEMA>.<AGENT_NAME>_EVAL_DS_<YYYYMMDD_HHMMSS>',
-        'dataset_version', 'SYSTEM_AI_OBS_CORTEX_AGENT_DATASET_VERSION_DO_NOT_DELETE'
-    ),
-    ARRAY_CONSTRUCT(<SELECTED_METRICS>),
-    ARRAY_CONSTRUCT('INGESTION', 'COMPUTE_METRICS')
+CALL EXECUTE_AI_EVALUATION(
+    'START',
+    OBJECT_CONSTRUCT('run_name', '<AGENT_NAME>_eval_<YYYYMMDD_HHMMSS>'),
+    '@<DATABASE>.<SCHEMA>.AGENT_EVAL_CONFIGS/eval_config.yaml'
 );
 ```
 
-**Metric array examples:**
+Poll for completion every 60 seconds:
+
 ```sql
-ARRAY_CONSTRUCT('correctness', 'tool_selection_accuracy', 'tool_execution_accuracy', 'logical_consistency')
-ARRAY_CONSTRUCT('correctness', 'logical_consistency')
-ARRAY_CONSTRUCT('logical_consistency')
+CALL EXECUTE_AI_EVALUATION(
+    'STATUS',
+    OBJECT_CONSTRUCT('run_name', '<AGENT_NAME>_eval_<YYYYMMDD_HHMMSS>'),
+    '@<DATABASE>.<SCHEMA>.AGENT_EVAL_CONFIGS/eval_config.yaml'
+);
 ```
+
+Status values: `CREATED` → `INVOCATION_IN_PROGRESS` → `INVOCATION_COMPLETED` → `COMPUTATION_IN_PROGRESS` → `COMPLETED`
+
+Alternatively, check for scored results:
+```sql
+SELECT COUNT(*) AS COMPLETED_METRICS
+FROM TABLE(SNOWFLAKE.LOCAL.GET_AI_EVALUATION_DATA(
+    '<DATABASE>', '<SCHEMA>', '<AGENT_NAME>', 'CORTEX AGENT',
+    '<AGENT_NAME>_eval_<YYYYMMDD_HHMMSS>'
+))
+WHERE METRIC_NAME IS NOT NULL;
+```
+
+`COMPLETED_METRICS > 0` = done.
 
 ### 4.4 Open Results in Snowsight
 
@@ -414,28 +451,24 @@ CREATE OR REPLACE CORTEX AGENT <DATABASE>.<SCHEMA>.<AGENT_NAME>
 
 ### 6.3 Re-Run Evaluation
 
-Use the same dataset with a new run name to measure improvement:
+Use the same dataset with a new run name to measure improvement.
+
+Generate a new config (`/tmp/eval_config_v2.yaml`) using the same template as Phase 4.2
+but with an updated `run_params.description` and a new run name:
 
 ```sql
-CALL SYSTEM$EXECUTE_AI_OBSERVABILITY_RUN(
-    OBJECT_CONSTRUCT(
-        'object_name', '<DATABASE>.<SCHEMA>.<AGENT_NAME>',
-        'object_type', 'CORTEX AGENT'
-    ),
-    OBJECT_CONSTRUCT(
-        'run_name', '<AGENT_NAME>_eval_v2_<YYYYMMDD_HHMMSS>',
-        'label', 'evaluation',
-        'description', 'Re-eval after instruction improvements'
-    ),
-    OBJECT_CONSTRUCT(
-        'type', 'dataset',
-        'dataset_name', '<DATABASE>.<SCHEMA>.<AGENT_NAME>_EVAL_DS_<YYYYMMDD_HHMMSS>',
-        'dataset_version', 'SYSTEM_AI_OBS_CORTEX_AGENT_DATASET_VERSION_DO_NOT_DELETE'
-    ),
-    ARRAY_CONSTRUCT(<SAME_METRICS>),
-    ARRAY_CONSTRUCT('INGESTION', 'COMPUTE_METRICS')
+PUT 'file:///tmp/eval_config_v2.yaml'
+    @<DATABASE>.<SCHEMA>.AGENT_EVAL_CONFIGS/
+    AUTO_COMPRESS=FALSE OVERWRITE=TRUE;
+
+CALL EXECUTE_AI_EVALUATION(
+    'START',
+    OBJECT_CONSTRUCT('run_name', '<AGENT_NAME>_eval_v2_<YYYYMMDD_HHMMSS>'),
+    '@<DATABASE>.<SCHEMA>.AGENT_EVAL_CONFIGS/eval_config_v2.yaml'
 );
 ```
+
+Poll for completion using STATUS (same pattern as Phase 4.3).
 
 ### 6.4 Compare Runs
 

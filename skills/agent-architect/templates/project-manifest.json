@@ -1,0 +1,61 @@
+{
+  "version": "1.0",
+  "project_brief": {
+    "goal": "",
+    "success_criteria": "",
+    "existing_assets": "",
+    "constraints": [],
+    "priority": "balanced"
+  },
+<<<<<<< HEAD
+  "git": {
+    "remote": "",
+    "repo_name": "",
+    "main_branch": "main",
+    "worker_branch_pattern": "agent/worker-{team_id}/{task_id}",
+    "platform": "github"
+  },
+=======
+>>>>>>> 3be9b73 (Config backup: 2026-04-27 10:41)
+  "status": "NEW",
+  "arch_plan": {
+    "goal": "",
+    "team_count": 0,
+    "approach": "",
+    "risks": [],
+    "phases": []
+  },
+  "teams": [],
+  "tasks": {},
+  "research": {},
+  "checkedout": {},
+  "completed": [],
+  "security_reviews": {},
+  "test_results": {},
+  "major_changes": {},
+  "global_flags": {
+    "major_change_pending": false,
+    "conflict": false,
+    "blocked_tasks": []
+  },
+  "global_review": {},
+<<<<<<< HEAD
+  "cocoplus": {
+    "install_path": "~/src/github/cocoplus",
+    "skill_root": "~/src/github/cocoplus/.cortex/skills",
+    "patterns": [
+      "cocobrew",
+      "cocoharvest",
+      "secondeye",
+      "cocogrove",
+      "safety-gate",
+      "cocofleet",
+      "cocometer"
+    ],
+    "note": "Injected automatically into every manifest.teams[] entry by the Architect. Workers read from manifest.teams[team_id].cocoplus — do not reference this top-level key directly."
+  },
+=======
+>>>>>>> 3be9b73 (Config backup: 2026-04-27 10:41)
+  "created_at": "",
+  "updated_at": ""
+}

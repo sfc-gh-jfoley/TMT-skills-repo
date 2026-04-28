@@ -31,7 +31,9 @@ Invoke `kg-data-discovery` skill with these inputs from the domain map:
 - Domain names and descriptions (from `domains[].description`)
 - Tables to exclude (from `excluded_tables[]`)
 
-Tell kg-data-discovery to run in AUTOPILOT mode and emit a structured manifest:
+Open kg-data-discovery with the opening message: "execution mode: AUTOPILOT — emit the EMIT MANIFEST block at the end."
+**CRITICAL:** The phrase must start with "execution mode" (kg-data-discovery AGENTS.md convention) to bypass the STEP ZERO mode-selection prompt. "Run in AUTOPILOT mode" will NOT trigger bypass.
+Request a structured manifest:
 ```json
 {
   "domain": "<name>",
@@ -47,7 +49,7 @@ Capture this manifest — it feeds VQR in the next step.
 Invoke `vqr-semantic-view-generator` skill.
 
 **For KG_ENRICHED path:** Pass the KG manifest as `--input` (enriched schemas + FK map).
-**For VQR_DIRECT path:** Script fetches directly from INFORMATION_SCHEMA.
+**For VQR_DIRECT path:** First run `sql-table-extractor` on the domain's query history CSV to produce `extracted_tables.json` — `vqr-semantic-view-generator` requires this file as mandatory input. Export queries from `ACCOUNT_USAGE.QUERY_HISTORY` for the domain's tables, save as CSV, invoke sql-table-extractor, then pass the resulting JSON to vqr.
 
 Provide these from the domain map:
 - Source queries CSV: extract from `ACCOUNT_USAGE.QUERY_HISTORY` for the domain's tables
@@ -66,7 +68,7 @@ After VQR completes, review generated YAML files against the domain map:
 
 ## Step 3: Ontology Stack Builder
 
-Invoke `ontology-stack-builder` skill with:
+Invoke skill `ontology-stack-builder` with:
 - **Phase 1b input:** The semantic views generated in Step 2 (pass as existing SVs)
 - **Business questions:** `success_criteria[]` questions → used for ontology class design
 - **Domain map:** entities, relationships, and metrics already confirmed

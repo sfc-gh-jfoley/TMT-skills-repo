@@ -1,6 +1,6 @@
 ---
 name: vqr-semantic-view-generator
-description: "Generate Semantic View YAML files from VQR/SQL query analysis grouped by domain. Use for: creating semantic views from extracted tables, building domain-specific semantic models, converting query manifests to semantic views. Triggers: generate semantic view from queries, create semantic model by domain, VQR to semantic view."
+description: "Generate Semantic View YAML files from VQR/SQL query analysis grouped by domain. Requires sql-table-extractor output (extracted tables JSON) as mandatory input — run sql-table-extractor first. Use for: creating semantic views from extracted tables, building domain-specific semantic models, converting query manifests to semantic views. Triggers: generate semantic view from queries, create semantic model by domain, VQR to semantic view. For HOL/pure-SQL single semantic view creation, use semantic-view-ddl instead."
 ---
 
 # VQR Semantic View Generator

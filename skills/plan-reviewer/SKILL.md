@@ -100,6 +100,8 @@ Plans are scored on whether autonomous agents can execute them without judgment 
 
 **Total: 100 points weighted across 8 dimensions:**
 
+> **Scale note:** This skill uses a **100-point** max. `rule-reviewer` uses a 115-point max — both use 8 dimensions and the same Raw × (Weight/2) formula, but with different dimension weights tuned to their domain. Do not compare raw point totals across the two skills.
+
 **Critical Dimensions (75 points - agent must execute without human intervention):**
 - **Executability** - Raw: X/10, Weight: 4, Points: Y/20
 - **Completeness** - Raw: X/10, Weight: 4, Points: Y/20
