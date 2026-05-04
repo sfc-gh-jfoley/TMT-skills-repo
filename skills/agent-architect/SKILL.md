@@ -75,7 +75,6 @@ When this skill is invoked:
 2. Copy `templates/project-manifest.json` → `.agent-project/manifest.json`
 3. Copy `templates/task-checkout.json` → `.agent-project/checkout-format.json`
 4. Copy `templates/test-report.json` → `.agent-project/test-report-format.json`
-<<<<<<< HEAD
 5. Initialize git in the project directory:
    ```bash
    git init
@@ -83,7 +82,7 @@ When this skill is invoked:
    ```
 6. Create GitHub repo (derive slug from goal: lowercase, hyphens, ≤ 30 chars):
    ```bash
-   gh repo create sfc-gh-jfoley/<project-slug> --private \
+   gh repo create sfc-gh-{YOUR_GITHUB_HANDLE}/<project-slug> --private \
      --description "<project_brief.goal>"
    ```
 7. Write initial commit + push:
@@ -96,10 +95,6 @@ When this skill is invoked:
 8. Write `manifest.git.remote` (repo URL) and `manifest.git.repo_name` (slug)
 9. Load `agents/architect.agent.md` — hand control to the Architect
 10. Architect runs the intake interview and begins Phase 1
-=======
-5. Load `agents/architect.agent.md` — hand control to the Architect
-6. Architect runs the intake interview and begins Phase 1
->>>>>>> 3be9b73 (Config backup: 2026-04-27 10:41)
 
 ## Cross-Talk Protocol
 

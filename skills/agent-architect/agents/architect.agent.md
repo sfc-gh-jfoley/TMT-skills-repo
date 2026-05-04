@@ -55,7 +55,6 @@ Common research tasks:
 
 ---
 
-<<<<<<< HEAD
 ## Project Initialization
 
 After the intake interview completes and before spawning researchers:
@@ -64,7 +63,7 @@ After the intake interview completes and before spawning researchers:
 
 2. **Create GitHub repo:**
    ```bash
-   gh repo create sfc-gh-jfoley/<project-slug> --private \
+   gh repo create sfc-gh-{YOUR_GITHUB_HANDLE}/<project-slug> --private \
      --description "<project_brief.goal>"
    ```
 
@@ -77,15 +76,13 @@ After the intake interview completes and before spawning researchers:
    ```
 
 4. **Write to manifest:**
-   - `manifest.git.remote` = repo URL (e.g. `git@github.com:sfc-gh-jfoley/<slug>.git`)
+   - `manifest.git.remote` = repo URL (e.g. `git@github.com:sfc-gh-{YOUR_GITHUB_HANDLE}/<slug>.git`)
    - `manifest.git.repo_name` = `<project-slug>`
 
 5. Workers will branch from `main` — never commit directly to `main`.
 
 ---
 
-=======
->>>>>>> 3be9b73 (Config backup: 2026-04-27 10:41)
 ## Planning Mode
 
 Wait until all `manifest.research[*].status == "COMPLETE"`.
@@ -129,7 +126,6 @@ Then:
 }
 ```
 
-<<<<<<< HEAD
 **STEP 5 — Inject CoCo+ tooling block into every team entry.** When writing `manifest.teams[]`, each team object MUST include a `cocoplus` key. Copy this block verbatim — workers read it automatically on startup, no manual mention needed:
 
 ```json
@@ -146,19 +142,12 @@ Then:
 ```
 
 **STEP 6 — Create CoCo task entries** for each task:
-=======
-**STEP 5 — Create CoCo task entries** for each task:
->>>>>>> 3be9b73 (Config backup: 2026-04-27 10:41)
 ```bash
 cortex ctx task add "<task title>"
 cortex ctx step add "<step 1>" -t <task_id>
 ```
 
-<<<<<<< HEAD
 **STEP 7 — Set `manifest.status = "EXECUTING"`.**
-=======
-**STEP 6 — Set `manifest.status = "EXECUTING"`.**
->>>>>>> 3be9b73 (Config backup: 2026-04-27 10:41)
 
 ---
 
@@ -201,7 +190,6 @@ Actions:
 - Always wait for research before finalizing the plan
 - Always verify SecArch approval before marking a task complete in the manifest
 - MAJOR_CHANGE tasks require both SecArch AND Architect sign-off
-<<<<<<< HEAD
 
 ---
 
@@ -211,7 +199,7 @@ Triggered when all tasks are COMPLETE and Global Review is CONSISTENT.
 
 **STEP 1 — Merge all Worker PRs:**
 ```bash
-gh pr list --repo sfc-gh-jfoley/<repo-name> --json number,title,headRefName
+gh pr list --repo sfc-gh-{YOUR_GITHUB_HANDLE}/<repo-name> --json number,title,headRefName
 gh pr merge <number> --squash --delete-branch
 ```
 Repeat for each open PR. Do not merge until SecArch verdict is APPROVED.
@@ -227,7 +215,7 @@ git push origin --tags
 project: <manifest.git.repo_name>
 goal: <project_brief.goal>
 shipped: <ISO8601>
-repo: sfc-gh-jfoley/<repo-name>
+repo: sfc-gh-{YOUR_GITHUB_HANDLE}/<repo-name>
 delivered:
   - <file or object>: <one-line description>
   ...
@@ -239,7 +227,5 @@ next:
 
 **STEP 4 — Write consolidated memory:**
 ```bash
-cortex ctx remember "SHIP <project>: <one-line summary of what was built>. Repo: sfc-gh-jfoley/<slug>. Deployed: <yes/no>. Code at <path>. Next: <anything remaining>."
+cortex ctx remember "SHIP <project>: <one-line summary of what was built>. Repo: sfc-gh-{YOUR_GITHUB_HANDLE}/<slug>. Deployed: <yes/no>. Code at <path>. Next: <anything remaining>."
 ```
-=======
->>>>>>> 3be9b73 (Config backup: 2026-04-27 10:41)

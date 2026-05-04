@@ -1,6 +1,6 @@
 ---
 name: skill-timing
-description: Measures skill execution time and tracks performance. Use when you want to time a skill, measure duration, track how long something takes, compare performance across models, analyze execution speed, or detect agent shortcuts.
+description: "Measures skill execution time and tracks performance. Use when: time a skill, measure duration, benchmark skill, track execution time, compare model performance, analyze execution speed, detect agent shortcuts, timing instrumentation, performance baseline, skill benchmarking."
 version: 1.2.0
 tags: [timing, performance, measurement, instrumentation, metrics, ci-cd]
 ---

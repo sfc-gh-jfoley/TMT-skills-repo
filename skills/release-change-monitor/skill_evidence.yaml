@@ -1,7 +1,6 @@
 name: release-change-monitor
 version: "1.0.0"
 created: "2026-04-09"
-author: jfoley
 status: draft
 
 test_scenarios:

@@ -454,7 +454,7 @@ INSERT INTO {COMPANY_SLUG_UPPER}_DEMO.PUBLIC.{TABLE_NAME} VALUES
 
 ### Write File 1 — `demo_tables.sql`
 
-Path: `/Users/jfoley/src/demos/ontology-demo/customers/{company_slug}/demo_tables.sql`
+Path: `~/src/demos/ontology-demo/customers/{company_slug}/demo_tables.sql`
 
 ```sql
 -- ============================================================
@@ -495,7 +495,7 @@ Then all CREATE TABLE + INSERT blocks. End with:
 
 ### Write File 2 — `schema_summary.md`
 
-Path: `/Users/jfoley/src/demos/ontology-demo/customers/{company_slug}/schema_summary.md`
+Path: `~/src/demos/ontology-demo/customers/{company_slug}/schema_summary.md`
 
 ```markdown
 # {CUSTOMER_NAME} — Snowhouse Schema Discovery
@@ -550,7 +550,7 @@ Based on column names, inferred ontology domains:
 
 **Only write this file if Step 2.5 returned results (i.e., join graph query was not skipped).**
 
-Path: `/Users/jfoley/src/demos/ontology-demo/customers/{company_slug}/join_graph.md`
+Path: `~/src/demos/ontology-demo/customers/{company_slug}/join_graph.md`
 
 ```markdown
 # {CUSTOMER_NAME} — Query Join Graph
@@ -583,7 +583,7 @@ HIGH/MEDIUM pairs as candidate entries in `relations.json` automatically.
 
 **Only write this file if Step 2.75 returned results (i.e., query text was not redacted).**
 
-Path: `/Users/jfoley/src/demos/ontology-demo/customers/{company_slug}/query_patterns.md`
+Path: `~/src/demos/ontology-demo/customers/{company_slug}/query_patterns.md`
 
 ```markdown
 # {CUSTOMER_NAME} — Production Query Patterns

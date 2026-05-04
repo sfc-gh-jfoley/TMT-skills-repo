@@ -7,7 +7,6 @@ description: >
   manifest with ADD/SKIP recommendations and rationale, then generates remediation DDL
   only for user-approved items.
 version: "1.1"
-author: jfoley
 markers:
   - .my_skill
 ---

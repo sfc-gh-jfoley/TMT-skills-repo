@@ -50,7 +50,7 @@ Hypothesis: 3 domains detected
     Evidence: co-queried 312 times, 4 users
 
   UNKNOWN_CLUSTER (confidence: LOW)
-    SFMC_526000750__DLL, BDM_TCR_V2, ACCT_HIER_X
+    SFMC_XXXXX__DLL, BDM_TCR_V2, ACCT_HIER_X
     Evidence: co-queried 89 times, naming is cryptic
     → KG enrichment required to classify
 ```
