@@ -103,8 +103,6 @@ ALTER ACCOUNT <<ACCOUNT_ID>> SET COPILOT_ORCHESTRATOR_PARAM_157 = 'true'
   parameter_comment="EnableUnrestrictedChartTool";
 ```
 
-**Contact:** Adrian Stepniak (adrian.stepniak@snowflake.com)
-
 ---
 
 ### EnableSkillBasedPromptNoExtendedThinking
