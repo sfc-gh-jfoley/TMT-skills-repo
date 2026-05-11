@@ -1,0 +1,7 @@
+{
+  "name": "tmt-skills",
+  "description": "TMT team skill collection: agent lifecycle, ontology demos, ops monitoring, rule governance, SE workshops, and dev tooling",
+  "version": "2.0.0",
+  "author": { "name": "Joey Foley", "url": "https://github.com/sfc-gh-jfoley" },
+  "skills": ["./skills"]
+}
