@@ -46,6 +46,7 @@ Detect the user's intent and route to the appropriate sub-skill:
 | **EVAL DATA** | "create eval split", "validate split", "check eval balance", "split quality", "re-balance eval", "eval dataset" | Load `eval-data/SKILL.md` and follow its workflow |
 | **FLAG SWEEP** | "flag sweep", "revalidate flags", "re-run flag comparison", "compare EnableAgenticAnalyst", "compare feature flags" | Load `flag-sweep/SKILL.md` and follow its workflow. **Note:** for standalone 3-variant comparison from scratch (no active optimization project), route to `agent-flag-tester` instead. |
 | **FLAG REVALIDATION** | "revalidate flags", "re-test flags", "flag recheck", "confirm flag choice", "flags still hold", auto-triggered after 3 accepted iterations | Load `flag-sweep/SKILL.md` with `mode=REVALIDATE` (see below) |
+| **FEEDBACK** | "pull feedback", "feedback to eval", "grow eval from feedback", "curate feedback", "promote feedback", "user feedback" | Load `feedback-pipeline/SKILL.md` and follow its workflow |
 
 **Auto-trigger:** If `flag_sweep_baseline.json` exists in the workspace AND the optimization log shows `revalidation_interval` accepted iterations since the last flag validation, automatically suggest FLAG REVALIDATION before the next OPTIMIZE iteration. The user can defer ("skip for now") or proceed.
 

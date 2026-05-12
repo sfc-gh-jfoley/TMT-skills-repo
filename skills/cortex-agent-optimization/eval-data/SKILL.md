@@ -17,6 +17,7 @@ Read `metadata.yaml` for parameters if not already loaded (`<DATABASE>`, `<SCHEM
 This skill assumes the eval table already exists and focuses on split assignment and validation. For creating the initial dataset:
 - **From scratch:** Create table with TEST_ID, TEST_CATEGORY, INPUT_QUERY, GROUND_TRUTH, SPLIT columns
 - **From production data:** See bundled `dataset-curation` skill (Option B) for Agent Events Explorer workflow
+- **From user feedback:** Use `feedback-pipeline/SKILL.md` to curate thumbs up/down feedback into eval rows
 - **Complex curation needs:** See bundled `dataset-curation` skill for Streamlit-based annotation and format conversion
 
 This skill handles splitting existing data; the bundled skill handles collecting and curating that data.

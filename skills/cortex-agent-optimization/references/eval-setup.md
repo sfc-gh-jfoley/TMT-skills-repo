@@ -60,12 +60,98 @@ evaluation:
 metrics:
   - "answer_correctness"
   - "logical_consistency"
+  - name: "factual_correctness_verdict"
+    score_ranges:
+      min_score: [0, 0]
+      median_score: [1, 1]
+      max_score: [1, 1]
+    prompt: |
+      You are a BINARY factual correctness judge. Determine if the agent's answer is FACTUALLY CORRECT regardless of formatting or presentation style.
+
+      OUTPUT FORMAT (follow exactly):
+      First state your score as an integer: 0 or 1.
+      Then explain your reasoning.
+
+      SCORE 1 (CORRECT) when ALL of these hold:
+      - The same entities are referenced (people, products, markets, incidents)
+      - Numeric values match within 1% tolerance or differ only by rounding
+      - The same time periods are covered
+      - The same aggregation logic was applied (SUM vs AVG, correct grouping)
+      - The answer addresses the question asked
+      - Key facts from ground truth are present in the output (completeness)
+
+      SCORE 0 (INCORRECT) when ANY of these are true:
+      - Wrong entity or missing critical entity
+      - Numeric values differ by more than 1% (not rounding)
+      - Wrong time period or date range
+      - Wrong aggregation method (SUM vs AVG, daily vs monthly, wrong GROUP BY)
+      - Critical facts from ground truth are missing (e.g., ground truth lists 4 items, agent only shows 2)
+      - Answer does not address the question
+      - Agent claims data doesn't exist when ground truth shows it does
+
+      EXPLICITLY IGNORE (never penalize for these):
+      - Date format differences (2026-01-15 vs Jan 15, 2026 vs 01/15/2026)
+      - Number formatting ($1,234,567 vs $1.2M vs 1234567.00)
+      - Currency symbol presence or absence
+      - Decimal precision differences (3.2 vs 3.20 vs 3.200)
+      - Column or row ordering in tabular results
+      - Natural language phrasing differences
+      - Bullet vs paragraph vs table presentation style
+      - Markdown formatting differences
+      - Presence or absence of charts/visualizations
+      - Extra context the agent provides beyond what ground truth requires
+
+      IN YOUR EXPLANATION, state:
+      - What key facts you checked (entity names, numeric values, counts)
+      - Whether values matched and what tolerance you applied
+      - If SCORE 0: exactly which fact was wrong or missing, and what it should have been
+      - If SCORE 1 but built-in metric may have penalized: note the formatting difference you correctly ignored
+
+      User query: {{input}}
+      Expected ground truth: {{ground_truth}}
+      Agent output: {{output}}
 ```
 
 ## Available Metrics
 
-- `answer_correctness` — factual accuracy of the agent's response vs ground truth.
-- `logical_consistency` — whether the agent's reasoning and tool usage is logically sound.
+- `answer_correctness` — factual accuracy of the agent's response vs ground truth. Graded 0/0.33/0.67/1.0. Can penalize formatting differences.
+- `logical_consistency` — whether the agent's reasoning and tool usage is logically sound. Reference-free.
+- `factual_correctness_verdict` — binary (0 or 1) factual correctness that ignores formatting. Provides an explanation of WHY in `METRIC_CALLS[0]:explanation`. Use this as the authoritative correctness signal; use `answer_correctness` for trend tracking only.
+
+## Correctness Comparison View
+
+After any eval run completes, run this query to categorize each question's correctness verdict vs the built-in score:
+
+```sql
+SELECT 
+    a.INPUT,
+    a.EVAL_AGG_SCORE AS answer_correctness,
+    b.EVAL_AGG_SCORE AS factual_verdict,
+    CASE 
+        WHEN a.EVAL_AGG_SCORE < 1.0 AND b.EVAL_AGG_SCORE = 1.0 THEN 'FALSE_NEGATIVE'
+        WHEN a.EVAL_AGG_SCORE >= 0.67 AND b.EVAL_AGG_SCORE = 0.0 THEN 'LENIENT_BUILTIN'
+        WHEN a.EVAL_AGG_SCORE < 1.0 AND b.EVAL_AGG_SCORE = 0.0 THEN 'BOTH_AGREE_WRONG'
+        WHEN a.EVAL_AGG_SCORE = 1.0 AND b.EVAL_AGG_SCORE = 1.0 THEN 'BOTH_AGREE_CORRECT'
+        ELSE 'OTHER'
+    END AS verdict_category,
+    b.METRIC_CALLS[0]:explanation::STRING AS verdict_reason
+FROM TABLE(SNOWFLAKE.LOCAL.GET_AI_EVALUATION_DATA(
+    '<DATABASE>', '<SCHEMA>', '<AGENT_NAME>', 'CORTEX AGENT', '<RUN_NAME>'
+)) a
+JOIN TABLE(SNOWFLAKE.LOCAL.GET_AI_EVALUATION_DATA(
+    '<DATABASE>', '<SCHEMA>', '<AGENT_NAME>', 'CORTEX AGENT', '<RUN_NAME>'
+)) b ON a.INPUT = b.INPUT
+WHERE a.METRIC_NAME = 'answer_correctness'
+  AND b.METRIC_NAME = 'factual_correctness_verdict'
+ORDER BY a.EVAL_AGG_SCORE ASC;
+```
+
+**Category interpretation:**
+- `BOTH_AGREE_CORRECT` — No action needed.
+- `BOTH_AGREE_WRONG` — Real failure. Drive instruction changes.
+- `FALSE_NEGATIVE` — Agent was correct but `answer_correctness` penalized it (formatting/presentation). Consider: tighten ground truth to match question scope, or ignore.
+- `LENIENT_BUILTIN` — Built-in gave partial credit but verdict says wrong. Real failure with missing facts. Drive instruction changes.
+- `OTHER` — Edge cases. Review `verdict_reason` manually.
 
 ## GET_AI_EVALUATION_DATA Column Reference
 
@@ -82,9 +168,9 @@ The result table from `SNOWFLAKE.LOCAL.GET_AI_EVALUATION_DATA()` has these colum
 | `OUTPUT` | VARCHAR | The agent's response text |
 | `ERROR` | VARCHAR | Error message if agent failed |
 | `GROUND_TRUTH` | VARCHAR | Ground truth text used for scoring |
-| `METRIC_NAME` | VARCHAR | Metric identifier (`answer_correctness`, `logical_consistency`) |
+| `METRIC_NAME` | VARCHAR | Metric identifier (`answer_correctness`, `logical_consistency`, `factual_correctness_verdict`) |
 | `EVAL_AGG_SCORE` | FLOAT | Score 0-1 (NOT `metric_value`, NOT `score`) |
-| `METRIC_TYPE` | VARCHAR | Always `system` |
+| `METRIC_TYPE` | VARCHAR | `system` for built-in metrics, `custom` for custom metrics (e.g., `factual_correctness_verdict`) |
 | `METRIC_STATUS` | VARCHAR | JSON with code/message (200=Ok, 400=Missing ground truth) |
 | `METRIC_CALLS` | VARCHAR | JSON array with criteria, explanation, and scoring metadata |
 | `TOTAL_INPUT_TOKENS` | NUMBER | Token count for agent input |

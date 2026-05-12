@@ -15,7 +15,7 @@ WHERE METRIC_NAME IS NOT NULL;
 **Interpretation:**
 - `COMPLETED_METRICS = 0`: Eval not started or scoring not complete yet
 - `COMPLETED_METRICS > 0`: Scoring is done, next run can start
-- `METRICS_FOUND` should match configured metrics (e.g., `['answer_correctness', 'logical_consistency']`)
+- `METRICS_FOUND` should match configured metrics (e.g., `['answer_correctness', 'logical_consistency', 'factual_correctness_verdict']`)
 
 **Polling Pattern:**
 

@@ -11,6 +11,7 @@ Load project context:
 - Read `optimization_log.md` — understand current scores, previous iterations, what's been tried, and the consecutive-rejection counter.
 - Read `DEPLOYMENT_INSTRUCTIONS.md` (if it exists) for project-specific workflow details.
 - Ask the user for the iteration name (`<ITER_NAME>`, e.g., `iter7`) or auto-increment from the last iteration in the log.
+- **Check for unassigned feedback rows:** If `SELECT COUNT(*) FROM <EVAL_TABLE> WHERE SPLIT IS NULL` returns > 0, inform the user that promoted feedback rows exist but haven't been split-assigned yet. Suggest running `eval-data` Workflow A or C before proceeding, or acknowledge and continue.
 
 **If resuming an interrupted iteration:** See `references/resume-iteration.md` for checkpoint detection queries and resume workflow.
 
@@ -79,15 +80,28 @@ WHERE METRIC_NAME IS NOT NULL
 GROUP BY METRIC_NAME;
 ```
 
-For per-question failure analysis, query individual question scores across all `<RUNS_PER_SPLIT>` runs. Filter to questions where **mean** `EVAL_AGG_SCORE` across the runs is `< 1.0`.
+### Step 3a: Correctness Comparison View
+
+For the first DEV run (`<ITER_NAME>_dev_r1`), run the Correctness Comparison View from `references/eval-setup.md` to categorize each question. This separates real failures from format noise:
+
+- **`BOTH_AGREE_WRONG` + `LENIENT_BUILTIN`** → Real failures. These drive instruction changes in Step 4-5.
+- **`FALSE_NEGATIVE`** → Agent was actually correct. Do NOT try to fix these — instead consider updating the ground truth to be less prescriptive.
+- **`BOTH_AGREE_CORRECT`** → No action needed.
+
+Use the `verdict_reason` explanation from `factual_correctness_verdict` to understand exactly what was wrong or missing. This explanation is more actionable than the raw `answer_correctness` score for guiding instruction edits.
+
+### Step 3b: Per-Question Failure Analysis
+
+For per-question failure analysis, query individual question scores across all `<RUNS_PER_SPLIT>` runs. Filter to questions where the `factual_correctness_verdict` score is `0` (use this as the primary failure signal, not `answer_correctness < 1.0`).
 
 Distinguish failure confidence:
-- **High-confidence failures**: Failed in all `<RUNS_PER_SPLIT>` runs — these drive instruction changes.
+- **High-confidence failures**: `factual_correctness_verdict = 0` in all `<RUNS_PER_SPLIT>` runs — these drive instruction changes.
 - **Noise candidates**: Failed in only 1 of `<RUNS_PER_SPLIT>` runs — generally should not drive changes unless a clear pattern emerges across multiple questions.
+- **False negatives**: `factual_correctness_verdict = 1` but `answer_correctness < 1.0` — the agent was correct. Flag these for ground truth review but do NOT fix the agent.
 
 **CRITICAL: Only analyze DEV failures. Do NOT examine TEST results at this stage.**
 
-### Step 3b: Populate Question Manifest
+### Step 3c: Populate Question Manifest
 
 If `<AGENT_NAME>_QUESTION_MANIFEST` exists, INSERT DEV results per run using the pattern from `references/question-manifest.md` with `SOURCE='optimize_dev'`, `ITERATION='<ITER_NAME>'`, `VARIANT=NULL`. If the table doesn't exist, skip.
 

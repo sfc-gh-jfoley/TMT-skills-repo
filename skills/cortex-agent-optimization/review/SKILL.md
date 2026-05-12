@@ -62,7 +62,15 @@ Present:
 - DEV scores (mean ± stddev) + delta vs previous accepted iteration
 - TEST scores (mean ± stddev) + delta vs previous accepted iteration
 - Per-run paired differences and t-statistics for each TEST metric
+- **Correctness Verdict Summary** (from first TEST run): Run the Comparison View query from `references/eval-setup.md` on `<ITER_NAME>_test_r1` and report category counts:
+  - `BOTH_AGREE_CORRECT`: X questions
+  - `FALSE_NEGATIVE`: X questions (agent correct, built-in penalized — these are NOT regressions)
+  - `BOTH_AGREE_WRONG`: X questions (real failures remaining)
+  - `LENIENT_BUILTIN`: X questions (real failures the built-in was lenient on)
+- **Actionable verdict reasons** for any `BOTH_AGREE_WRONG` or `LENIENT_BUILTIN` questions — show the `verdict_reason` explanation
 - Recommendation: **ACCEPT** or **REJECT** with t-statistic and critical value
+
+**Decision signal priority:** When `answer_correctness` shows a regression but `factual_correctness_verdict` is stable or improved, the regression is likely format noise — do NOT reject on that basis alone. The verdict metric is the authoritative correctness signal.
 
 Wait for user confirmation (supervised mode only).
 
