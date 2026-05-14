@@ -21,7 +21,12 @@ These go in the agent spec JSON under `"experimental"`:
 
 ### EnableAgenticAnalyst
 
-**Status:** Widely deployed, most commonly used flag
+**Status:** Rolling to GA (May 2026, 50% account hash cohort)
+
+**GA Note:** This flag is being promoted to default-on behavior. On GA'd accounts, omitting
+the flag gives you agentic mode automatically. To explicitly opt OUT, set
+`"EnableAgenticAnalyst": false`. Not all accounts are GA'd yet (hash-based rollout) —
+if you need it and don't have it, the flag still works.
 
 **What it does:**
 Enables "Agentic Analyst" mode for Cortex Analyst (text-to-SQL) tool calls.
@@ -42,9 +47,17 @@ with higher accuracy"
 
 ---
 
-### EnableVQRFastPath
+### EnableVQRFastPath / DisableFastPath
 
 **Status:** Available, used with agents that have Verified Query Representations
+
+**Aliases:** Two flag names control the same behavior:
+- `"EnableVQRFastPath": true` — enables fast path (default behavior)
+- `"DisableFastPath": true` — disables fast path (tested/confirmed on deployed agents)
+
+Use `DisableFastPath: true` to disable, as this is the form confirmed working on
+production agents (e.g., DISH_AGENT_FASTPATH_OFF). `EnableVQRFastPath: false` may
+be equivalent but is less battle-tested.
 
 **What it does:**
 Enables a fast path for VQRs (Verified Query Representations). When a user question
@@ -103,6 +116,8 @@ ALTER ACCOUNT <<ACCOUNT_ID>> SET COPILOT_ORCHESTRATOR_PARAM_157 = 'true'
   parameter_comment="EnableUnrestrictedChartTool";
 ```
 
+**Contact:** Adrian Stepniak (adrian.stepniak@snowflake.com)
+
 ---
 
 ### EnableSkillBasedPromptNoExtendedThinking
@@ -130,6 +145,36 @@ includes skill discovery, selection, and execution logic.
 **Tradeoffs:**
 - Faster responses at the potential cost of less deliberative skill selection
 - Best paired with `EnableVQRFastPath` for maximum speed
+
+---
+
+### [UNVERIFIED] EnableChartDataPostprocessingInSQL
+
+**Status:** Discovered 2026-05-11, not yet independently verified
+
+**What it does:**
+Enables chart data postprocessing via SQL. Likely allows the charting system to run
+additional SQL transformations on query results before rendering visualizations.
+
+**Source:** Aleksander Jedrosz, #snowflake-intelligence-dev (2026-05-11) — appeared
+in a full orchestrator config dump while debugging an artifact saving error.
+
+**When to use:** Unclear — likely relevant for agents with charting enabled.
+
+---
+
+### [UNVERIFIED] EnableSystemValidateSQLTool
+
+**Status:** Discovered 2026-05-11, not yet independently verified
+
+**What it does:**
+Enables a system-level SQL validation tool. May allow the agent to validate generated
+SQL before execution, potentially reducing errors.
+
+**Source:** Aleksander Jedrosz, #snowflake-intelligence-dev (2026-05-11) — appeared
+as `false` in a full orchestrator config dump from a logged request.
+
+**When to use:** Unclear — potentially useful for agents where SQL accuracy is critical.
 
 ---
 
@@ -421,16 +466,18 @@ viz_policies:
 
 <!-- Used by SKILL.md Step 0 to detect staleness. Update after each verification pass. -->
 
-**last_verified:** 2026-04-17
+**last_verified:** 2026-05-14
 
 **Sources consulted:**
-- Snowflake public docs (ALTER AGENT, CREATE AGENT, Cortex Agents overview)
-- Glean search: #feat-cortex-agents Slack channel
+- Snowflake public docs (ALTER AGENT, CREATE AGENT, Cortex Agents overview, EXECUTE_AI_EVALUATION)
+- Glean search: #snowflake-intelligence-dev, #feat-cortex-agents, #parameters-discuss, #cortex-agent-dev
 - Internal docs: "Unrestricted Charting for Cortex Agents" (Adrian Stepniak, 2026-04-09)
 - Internal docs: "Chart Customization -- Quick Reference" (two versions)
-- Existing agents on default connection (DISH_AGENT, DISH_AGENT_BASE, etc.)
+- Existing agents on default connection (DISH_AGENT, DISH_AGENT_BASE, DISH_AGENT_FASTPATH_OFF)
 - Snowflake public docs: "Customize charts in Snowflake Intelligence" (fetched 2026-04-17)
+- Glean Slack audit 2026-05-14: config dump from Aleksander Jedrosz, GA rollout discussion
 
 **Change log:**
 - 2026-04-09: Initial inventory. 4 agent-level flags, 4 account-level params, chart customization documented.
 - 2026-04-17: (from public docs fetch) Added Font Compatibility section (CSS generic families, config property table, Vega Editor validation tip). Added `_color` transform pattern for exact color mapping + pinned-values-with-palette-fallback alternative. Updated Placement table: `module_custom_instructions.sql_generation` is now the preferred SV field (supersedes legacy `custom_instructions`); added merge precedence note. Added internal-only warning to `viz_policies` section (absent from public docs).
+- 2026-05-14: Updated EnableAgenticAnalyst status to "Rolling to GA" (50% hash cohort). Added DisableFastPath as confirmed alias of EnableVQRFastPath=false. Added 2 [UNVERIFIED] flags (EnableChartDataPostprocessingInSQL, EnableSystemValidateSQLTool) from #snowflake-intelligence-dev config dump. Added new account-level params PARAM_180 (token mgmt) and PARAM_248/249 (sandbox alert skill, CoCo survey rate).

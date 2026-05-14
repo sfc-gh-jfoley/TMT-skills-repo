@@ -8,6 +8,16 @@
 | `_AGENTIC` | `true` | _(default)_ | Agentic analyst enabled with fast-path optimization. Typically improves correctness for complex queries. |
 | `_FASTPATH_OFF` | `true` | `true` | Agentic analyst with fast-path disabled — forces full reasoning chain on every query. Usually highest correctness but may reduce consistency or increase latency. |
 
+> **Flag naming:** `DisableFastPath=true` is the tested/working flag name (confirmed on
+> deployed agents). Some documentation references `EnableVQRFastPath=false` as an equivalent
+> — both disable the VQR fast path. Use `DisableFastPath` in agent specs for reliability.
+
+> **GA rollout note (May 2026):** `EnableAgenticAnalyst` is rolling to GA via a 50% account
+> hash cohort. On GA'd accounts, the BASE variant MUST explicitly set `"EnableAgenticAnalyst": false`
+> to get non-agentic behavior (omitting the flag no longer guarantees non-agentic mode).
+> Before running a full sweep, spot-check: run 2-3 questions against BASE and AGENTIC — if
+> scores are identical, your account likely has agentic enabled at the account level already.
+
 ## Agent Naming Convention
 
 Given a source agent `{DATABASE}.{SCHEMA}.{AGENT}`, variants are named:

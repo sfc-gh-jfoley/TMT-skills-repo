@@ -45,8 +45,7 @@ The skill will walk you through all 7 phases with confirmation gates at each ste
 
 ```
 agent-flag-tester/
-├── .my_skill                             # Personal skill marker
-├── SKILL.md                              # 7-phase workflow (482 lines)
+├── SKILL.md                              # 7-phase workflow
 ├── README.md                             # This file
 └── references/
     ├── eval-config-template.yaml         # YAML template with 3 metrics

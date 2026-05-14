@@ -93,7 +93,16 @@ If any fail, STOP — the agent's tools are broken and eval will be meaningless.
 
 Load `references/variant-matrix.md` for the default matrix.
 
-### Step 2.0: Select Variants
+### Step 2.0: GA Rollout Check
+
+> **Important (May 2026):** `EnableAgenticAnalyst` is rolling to GA via 50% account hash.
+> On GA'd accounts, the BASE variant (agentic=false) may behave identically to AGENTIC
+> since the account-level default is already `true`. Before committing to a 3-variant sweep,
+> run a quick sanity check: ask 2-3 questions to both BASE and AGENTIC variants. If scores
+> are identical, your account has agentic enabled at the account level — consider testing
+> only AGENTIC vs FASTPATH_OFF (2-variant sweep) instead.
+
+### Step 2.1: Select Variants
 
 Present the default matrix and ask:
 
@@ -104,14 +113,14 @@ Present the default matrix and ask:
 
 Store the selected variants as `<VARIANTS>` list. All subsequent phases iterate over only the selected variants — not hardcoded to 3.
 
-### Step 2.1: Generate Variant Specs
+### Step 2.2: Generate Variant Specs
 
 For each selected variant:
 1. Start with the original agent spec
 2. Modify the `experimental` section per the matrix
 3. Keep everything else identical (instructions, tools, tool_resources, model, budget)
 
-### Step 2.2: Generate CREATE AGENT SQL
+### Step 2.3: Generate CREATE AGENT SQL
 
 For each variant, generate:
 ```sql
@@ -127,7 +136,7 @@ Use `CHR(39)` escaping if the spec contains literal `$$` in instruction text.
 
 **STOP GATE:** Present the CREATE SQL for all 3 variants. Ask user: "Want me to create a rollback clone first so we can undo this?" Then execute upon confirmation.
 
-### Step 2.3: Verify Deployment
+### Step 2.4: Verify Deployment
 
 For each variant:
 ```sql
