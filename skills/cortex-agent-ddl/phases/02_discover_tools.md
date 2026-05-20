@@ -52,7 +52,18 @@ Do you already have these set up, or should I create them?
   B) I already have them — provide the integration and secret names
 ```
 
-**If A**: Present the infrastructure DDL from the reference doc (Steps 1-4), with `<DB>.<SCHEMA>` = `AGENT_DB.AGENT_SCHEMA`, and `<YOUR_ACCOUNT>` filled from the connection. Ask the user for their PAT token. Execute each statement.
+**If A**: Present the infrastructure DDL from the reference doc (Steps 1-4), with `<DB>.<SCHEMA>` = `AGENT_DB.AGENT_SCHEMA`, and `<YOUR_ACCOUNT>` filled from the connection.
+
+> ⚠️ **Secret handling**: Do NOT ask the user to paste their PAT token into this conversation. Token values in CoCo history may appear in Snowflake query history.
+>
+> Instead:
+> 1. Present the `CREATE SECRET` template with a placeholder: `SECRET_STRING = '<paste_your_token_here>'`
+> 2. Instruct the user to run this statement directly in Snowsight or their SQL client
+> 3. Ask the user to confirm when done, then provide the secret FQN (e.g., `DB.SCHEMA.cortex_agent_token_secret`)
+>
+> If the user already has a secret, ask for its FQN and skip creation.
+
+Execute the remaining statements (network rule, integration, grants) normally.
 
 **If B**: Ask for the integration name and secret FQN. Store as `EAI_NAME` and `SECRET_FQN`.
 
@@ -116,7 +127,7 @@ No semantic views found in <scope>.
 
 Options:
   1. Search a different schema → provide DB.SCHEMA
-  2. Build a semantic view first → invoke semantic-view-ddl skill
+  2. Build a semantic view first → invoke the semantic-view-ddl skill (if installed) or use the bundled semantic-view skill
   3. Skip semantic view tools and use cortex_search or generic tools only
 ```
 
@@ -300,7 +311,7 @@ Apply these naming rules:
 - Max 40 characters, no spaces (use CamelCase)
 
 Auto-suggest names from the SV names:
-- `DISH_SUBSCRIBER_360` → `SubscriberAnalytics`
+- `CUSTOMER_360` → `CustomerAnalytics`
 - `MARKETING_CAMPAIGNS_SV` → `MarketingCampaignQuery`
 - `IOT_FLEET_360` → `IoTFleetAnalytics`
 

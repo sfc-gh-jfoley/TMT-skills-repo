@@ -414,6 +414,10 @@ When NOT to use:
 
 ## DATA_AGENT_RUN — invoke agent in SQL
 
+> **Full invocation reference**: See [invocation_patterns.md](invocation_patterns.md) for multi-turn threading, `variables` block, tenant isolation invocation, role headers, and response parsing patterns.
+
+Basic invocation:
+
 ```sql
 SELECT SNOWFLAKE.CORTEX.DATA_AGENT_RUN(
   'DB.SCHEMA.AGENT_NAME',

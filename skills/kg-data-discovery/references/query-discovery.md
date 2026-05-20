@@ -85,7 +85,7 @@ Inject assembled schema context directly into an AI_COMPLETE prompt:
 
 ```sql
 SELECT SNOWFLAKE.CORTEX.AI_COMPLETE(
-  'claude-3-5-sonnet',
+  -- model read from DOMAIN_CONFIG.llm_model (default: claude-sonnet-4)
   CONCAT(
     'You are a SQL expert. Generate a Snowflake SQL query to answer the user''s question.\n\n',
     '## Available Tables\n\n', :assembled_schema_yaml, '\n\n',

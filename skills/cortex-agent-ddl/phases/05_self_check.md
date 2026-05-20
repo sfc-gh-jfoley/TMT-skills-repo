@@ -1,18 +1,18 @@
 ---
 name: cortex-agent-ddl-phase5-self-check
-description: 16-rule spec validation — auto-fix hard FAILs, present WARNs to user — runs before every execution including edits
+description: 17-rule spec validation — auto-fix hard FAILs, present WARNs to user — runs before every execution including edits
 ---
 
 # Phase 5: Self-Check
 
 ## Purpose
-Validate `AGENT_SPEC` against 16 rules before presenting to the user or executing. Hard FAILs are auto-fixed and re-checked in a loop. WARNs are presented with "accept / fix" options. Nothing broken reaches Phase 6.
+Validate `AGENT_SPEC` against 17 rules before presenting to the user or executing. Hard FAILs are auto-fixed and re-checked in a loop. WARNs are presented with "accept / fix" options. Nothing broken reaches Phase 6.
 
 **This phase is always run** — for new agents after Phase 4, and for edits before ALTER in the edit flow.
 
 ---
 
-## Step 5.1: Run all 16 checks
+## Step 5.1: Run all 17 checks
 
 Evaluate `AGENT_SPEC` against each rule. Record PASS / FAIL / WARN for each.
 
@@ -45,6 +45,7 @@ Evaluate `AGENT_SPEC` against each rule. Record PASS / FAIL / WARN for each.
 | 14 | `profile.display_name` note exists (checked against `AGENT_PROFILE` from Phase 4) | `AGENT_PROFILE.display_name` non-empty | WARN — remind that ALTER SET PROFILE must be run in Phase 6 |
 | 15 | Tool count ≤ 10 | `spec.tools.length <= 10` | WARN if >10 — inform of best-practices guidance; user must explicitly accept |
 | 16 | Router agents must not self-answer | If `AGENT_TYPE == "router"`: `instructions.orchestration` contains "do not attempt to answer" or "must invoke" or "never answer yourself" | WARN — router instructions should explicitly prohibit self-answering. Add: "Do NOT attempt to answer yourself. You MUST invoke a tool." |
+| 17 | Multitenant agent has RAP pattern documented | If `IS_MULTITENANT == true` (set in Phase 1): check that `AGENT_SPEC.instructions.orchestration` or Phase 4b spec notes reference a RAP isolation pattern (user/role/session-attribute). Search for "RAP", "row access", "tenant", "CURRENT_USER", "CURRENT_ROLE", or "SESSION_ATTRIBUTES" in instructions or spec notes. | WARN — "IS_MULTITENANT=true but no RAP pattern documented in spec notes. Run Phase 4b or add tenant isolation guidance to instructions." Offer: (A) Load Phase 4b now, (B) Add a note to instructions acknowledging tenant isolation is handled externally, (C) Dismiss |
 
 ---
 

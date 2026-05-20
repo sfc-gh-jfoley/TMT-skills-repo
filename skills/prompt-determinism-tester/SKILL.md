@@ -351,11 +351,11 @@ When the current prompt passes (convergence >= 90% or user accepts):
   HOL PIPELINE SUMMARY
 ═══════════════════════════════════════════════════
 
-Lab: Cox Automotive HOL (7 prompts)
+Lab: Retail Analytics HOL (7 prompts)
 Context: hol_setup.sql (8 base tables)
 
   Prompt 1 — Schema Discovery .... 97% DETERMINISTIC     ✅
-  Prompt 2 — Vehicle Lifecycle ... 88% MOSTLY_DETERM.     ⚠️ (col order)
+  Prompt 2 — Product Lifecycle ... 88% MOSTLY_DETERM.     ⚠️ (col order)
   Prompt 3 — Debug & Optimize .... 94% DETERMINISTIC     ✅
   Prompt 4 — Cortex AI on Notes .. 72% MOSTLY_DETERM.     ⚠️ (AI func)
   Prompt 5 — Dynamic Table ....... 91% DETERMINISTIC     ✅

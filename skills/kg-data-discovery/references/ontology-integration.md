@@ -92,6 +92,69 @@ If any exist over the source tables, pass them to ontology-stack-builder Phase 1
 
 ---
 
+## Pre-Graduation Intelligence Brief Gate
+
+Before invoking ontology-stack-builder, kg-data-discovery **owns the handoff contract**. Run these SQL checks and block graduation if any field is missing. This keeps ontology-stack-builder self-contained while guaranteeing it receives high-quality context.
+
+### Required fields and how to populate them
+
+| Field | Check | Remediation if missing |
+|-------|-------|------------------------|
+| `join_evidence` | `SELECT COUNT(*) FROM RELATIONSHIPS WHERE relationship_type = 'QUERY_JOIN'` ≥ 1 | Run `CALL PARSE_QUERY_JOINS('{domain}', 30, 2)` |
+| `doc_coverage` | Optional — 0.0 is acceptable | Run `CALL INGEST_DOCS('{domain}', '<doc_text>', 'data_dict')` to improve |
+| `data_confidence` | `SELECT AVG(enrichment_quality_score) FROM CONCEPTS WHERE concept_level = 'table'` ≥ 0.4 | Run ENRICH at Tier 1+ before graduating |
+| `cryptic_tables` | Compute — does not block | Informational: surfaces tables ontology-stack-builder should pay extra attention to |
+| `usage_hotspots` | Compute — does not block | Informational: surfaces the most-queried tables for ontology class prioritization |
+
+### Gate SQL (run before invoking ontology-stack-builder)
+
+```sql
+-- Gate 1: join_evidence — at least 1 QUERY_JOIN relationship required
+SELECT COUNT(*) AS join_count
+FROM {DOMAIN}_META.META.RELATIONSHIPS
+WHERE domain = '{domain_name}'
+  AND relationship_type IN ('QUERY_JOIN', 'FK', 'INFERRED_FK', 'SHARED_KEY');
+-- BLOCK if join_count = 0: "No join evidence. Run PARSE_QUERY_JOINS first."
+
+-- Gate 2: data_confidence — mean quality must be >= 0.4
+SELECT AVG(enrichment_quality_score) AS mean_quality
+FROM {DOMAIN}_META.META.CONCEPTS
+WHERE concept_level = 'table' AND is_active = TRUE;
+-- BLOCK if mean_quality < 0.4: "Enrichment quality too low. Run ENRICH at Tier 1+ first."
+
+-- Compute: cryptic_tables (informational)
+SELECT table_fqn
+FROM {DOMAIN}_META.META.CONCEPTS
+WHERE concept_level = 'table'
+  AND is_active = TRUE
+  AND (enrichment_quality_score < 0.4
+       OR UPPER(description) = UPPER(source_table)
+       OR description IS NULL)
+ORDER BY enrichment_quality_score ASC NULLS FIRST
+LIMIT 10;
+
+-- Compute: usage_hotspots (informational)
+SELECT table_fqn
+FROM {DOMAIN}_META.META.CONCEPTS
+WHERE concept_level = 'table' AND is_active = TRUE
+ORDER BY query_count DESC NULLS LAST
+LIMIT 5;
+
+-- Compute: doc_coverage
+SELECT
+  ROUND(
+    SUM(CASE WHEN enrichment_source = 'DOC_CONTEXT' THEN 1 ELSE 0 END)::FLOAT
+    / NULLIF(COUNT(*), 0),
+    2
+  ) AS doc_coverage
+FROM {DOMAIN}_META.META.CONCEPTS
+WHERE concept_level = 'table' AND is_active = TRUE;
+```
+
+If all gates pass, assemble the Intelligence Brief and include it in the ontology-stack-builder invocation context below.
+
+---
+
 ## Invoking ontology-stack-builder
 
 Invoke the skill with the following context assembled from the KG:
@@ -107,6 +170,15 @@ Phase 1 context to provide:
   - Ontology name: {domain_name} (uppercase, short — e.g. FINANCE, COMMERCE)
   - Path: Ask user (KG path for graph analytics, Direct for lightweight)
   - Existing semantic views: [from SHOW SEMANTIC VIEWS, if any]
+
+Intelligence Brief (from pre-graduation gate above):
+  - join_evidence: {N joins detected from QUERY_HISTORY}
+  - doc_coverage: {0.0–1.0 — fraction of tables with documentation}
+  - data_confidence: {mean enrichment_quality_score}
+  - cryptic_tables: [list of low-quality / undescribed table FQNs]
+    → These are high-priority candidates for manual ontology class definitions
+  - usage_hotspots: [top 5 most-queried table FQNs]
+    → Prioritize these as primary ontology classes — they drive the most queries
 
 Phase 2 enrichment context (provide alongside schema introspection):
   - For each source table, provide concept row from CONCEPTS:

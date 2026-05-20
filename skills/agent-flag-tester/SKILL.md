@@ -38,13 +38,13 @@ Collect these from the user at the start (or detect from context):
 
 | Parameter | Description | Example |
 |---|---|---|
-| `<AGENT_FQN>` | Fully qualified agent name | `DISH_ONTOLOGY_DEMO.PUBLIC.DISH_AGENT` |
+| `<AGENT_FQN>` | Fully qualified agent name | `ACME_ANALYTICS.PUBLIC.ACME_AGENT` |
 | `<CONNECTION>` | Snowflake connection name | `default` |
-| `<DATABASE>` | Database containing agent | `DISH_ONTOLOGY_DEMO` |
+| `<DATABASE>` | Database containing agent | `ACME_ANALYTICS` |
 | `<SCHEMA>` | Schema containing agent | `PUBLIC` |
-| `<AGENT_NAME>` | Unqualified agent name | `DISH_AGENT` |
+| `<AGENT_NAME>` | Unqualified agent name | `ACME_AGENT` |
 | `<RUNS_PER_SPLIT>` | Eval runs per split (default 3) | `3` |
-| `<RUN_PREFIX>` | Prefix for run names | `dish_flag_v1` |
+| `<RUN_PREFIX>` | Prefix for run names | `acme_flag_v1` |
 
 ---
 
@@ -93,16 +93,7 @@ If any fail, STOP — the agent's tools are broken and eval will be meaningless.
 
 Load `references/variant-matrix.md` for the default matrix.
 
-### Step 2.0: GA Rollout Check
-
-> **Important (May 2026):** `EnableAgenticAnalyst` is rolling to GA via 50% account hash.
-> On GA'd accounts, the BASE variant (agentic=false) may behave identically to AGENTIC
-> since the account-level default is already `true`. Before committing to a 3-variant sweep,
-> run a quick sanity check: ask 2-3 questions to both BASE and AGENTIC variants. If scores
-> are identical, your account has agentic enabled at the account level — consider testing
-> only AGENTIC vs FASTPATH_OFF (2-variant sweep) instead.
-
-### Step 2.1: Select Variants
+### Step 2.0: Select Variants
 
 Present the default matrix and ask:
 
@@ -113,14 +104,14 @@ Present the default matrix and ask:
 
 Store the selected variants as `<VARIANTS>` list. All subsequent phases iterate over only the selected variants — not hardcoded to 3.
 
-### Step 2.2: Generate Variant Specs
+### Step 2.1: Generate Variant Specs
 
 For each selected variant:
 1. Start with the original agent spec
 2. Modify the `experimental` section per the matrix
 3. Keep everything else identical (instructions, tools, tool_resources, model, budget)
 
-### Step 2.3: Generate CREATE AGENT SQL
+### Step 2.2: Generate CREATE AGENT SQL
 
 For each variant, generate:
 ```sql
@@ -136,7 +127,7 @@ Use `CHR(39)` escaping if the spec contains literal `$$` in instruction text.
 
 **STOP GATE:** Present the CREATE SQL for all 3 variants. Ask user: "Want me to create a rollback clone first so we can undo this?" Then execute upon confirmation.
 
-### Step 2.4: Verify Deployment
+### Step 2.3: Verify Deployment
 
 For each variant:
 ```sql
@@ -182,13 +173,13 @@ If **Option 1 (text file import):**
 
    Format:
    ```
-   # subscriber_lookup
-   Show me the full profile for subscriber Marcus Williams
-   What is the churn risk for account ACC-1001?
+   # customer_lookup
+   Show me the full profile for customer Alex Johnson
+   What is the risk tier for account ACC-1001?
 
-   # network_ops
-   Which cell towers had the most dropped calls last week?
-   Show me the 5G coverage map for the Denver market
+   # operations
+   Which regions had the most incidents last week?
+   Show me the coverage report for the West region
    ```
 
    Lines after a `# category` header are assigned that TEST_CATEGORY. Lines before any header get category `general`.
@@ -216,8 +207,8 @@ If **Option 1 (text file import):**
 
    | TEST_ID | Category | Question (truncated) | Generated Ground Truth (truncated) | Status |
    |---|---|---|---|---|
-   | 1 | subscriber_lookup | Show me the full profile... | Marcus Williams (SUB-720...) | REVIEW |
-   | 2 | subscriber_lookup | What is the churn risk... | Account ACC-1001 has... | REVIEW |
+   | 1 | customer_lookup | Show me the full profile... | Alex Johnson (CUS-0001...) | REVIEW |
+   | 2 | customer_lookup | What is the risk tier... | Account ACC-1001 has... | REVIEW |
    | ... | ... | ... | ... | ... |
 
    For each row, the user can:
@@ -532,10 +523,10 @@ Present recommendation with reasoning.
 
 ## Phase 8: Optimization Handoff (Optional)
 
-After promoting a winner, check if the `cortex-agent-optimization` skill is available:
+After promoting a winner, check if the `cortex-agent-optimization` skill is available in this plugin:
 
 ```bash
-ls ~/.snowflake/cortex/skills/cortex-agent-optimization/SKILL.md 2>/dev/null && echo "AVAILABLE" || echo "NOT_FOUND"
+cortex plugin list | grep cortex-agent-toolkit
 ```
 
 **If NOT_FOUND:** Skip this phase. Present final summary and proceed to Cleanup.
@@ -604,7 +595,7 @@ configs are needed for flag re-validation during the optimization loop.
 
 ---
 
-## Key Learnings (from Dish Flag Sweep)
+## Key Learnings
 
 - `EnableAgenticAnalyst=true` improves correctness but can reduce logical consistency
 - `DisableFastPath=true` forces full reasoning — highest correctness, more latency

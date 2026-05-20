@@ -19,10 +19,10 @@ The `GROUND_TRUTH` column must be VARIANT (not VARCHAR). Use `PARSE_JSON` or `OB
 ```sql
 INSERT INTO {AGENT}_EVAL (TEST_CATEGORY, INPUT_QUERY, GROUND_TRUTH)
 SELECT
-    'subscriber_lookup',
-    'Show me the full profile for subscriber Marcus Williams',
+    'customer_lookup',
+    'Show me the full profile for customer Alex Johnson',
     PARSE_JSON('{
-        "ground_truth_output": "Marcus Williams (SUB-7205550001) is in the Denver-Boulder market with 3 products. Total monthly household value is $194.99. Churn risk tier is MEDIUM."
+        "ground_truth_output": "Alex Johnson (CUS-0001) is in the West region with 3 products. Total monthly value is $194.99. Risk tier is MEDIUM."
     }');
 ```
 
@@ -31,10 +31,10 @@ Alternative using OBJECT_CONSTRUCT:
 ```sql
 INSERT INTO {AGENT}_EVAL (TEST_CATEGORY, INPUT_QUERY, GROUND_TRUTH)
 SELECT
-    'subscriber_lookup',
-    'Show me the full profile for subscriber Marcus Williams',
+    'customer_lookup',
+    'Show me the full profile for customer Alex Johnson',
     TO_VARIANT(OBJECT_CONSTRUCT(
-        'ground_truth_output', 'Marcus Williams (SUB-7205550001) is in the Denver-Boulder market with 3 products. Total monthly household value is $194.99. Churn risk tier is MEDIUM.'
+        'ground_truth_output', 'Alex Johnson (CUS-0001) is in the West region with 3 products. Total monthly value is $194.99. Risk tier is MEDIUM.'
     ));
 ```
 

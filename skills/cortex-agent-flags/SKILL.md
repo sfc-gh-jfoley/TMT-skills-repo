@@ -1,6 +1,6 @@
 ---
 name: cortex-agent-flags
-description: Reference for Cortex Agent experimental flags and chart customization options. Load when creating, editing, or optimizing a Cortex Agent to present available experimental configuration options. Uses a search-first workflow to stay current -- checks Snowflake docs and Glean before falling back to cached reference. Triggers: experimental flags, agent flags, chart customization, EnableAgenticAnalyst, EnableUnrestrictedChartTool, EnableVQRFastPath, vega_template, viz_policies.
+description: Reference for Cortex Agent experimental flags and chart customization options. Load when creating, editing, or optimizing a Cortex Agent to present available experimental configuration options. Uses a search-first workflow to stay current -- checks Snowflake docs before falling back to cached reference. Triggers: experimental flags, agent flags, chart customization, EnableAgenticAnalyst, EnableUnrestrictedChartTool, EnableVQRFastPath, vega_template, viz_policies.
 ---
 
 # Cortex Agent Experimental Flags
@@ -43,14 +43,9 @@ cortex search docs "cortex agent experimental specification flags"
 Scan results for any mention of new experimental keys, deprecated flags, or flags that
 have become default behavior (GA). Look for ALTER AGENT and CREATE AGENT doc updates.
 
-#### 0b. Search Glean (#feat-cortex-agents)
+#### 0b. Search Snowflake Documentation
 
-```
-mcp__glean__search(query="cortex agent experimental flag", app="slack")
-```
-
-Focus on recent messages (last 30 days) in `#feat-cortex-agents` and related channels.
-Look for:
+Check Snowflake documentation or release notes for the latest experimental flags. Look for:
 - New flag announcements
 - Flags marked as GA / no longer needed
 - Flag renames or behavior changes

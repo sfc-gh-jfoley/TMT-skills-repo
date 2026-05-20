@@ -20,8 +20,49 @@ Optional:
 
 import argparse
 import json
+import re
 import snowflake.connector
 import os
+
+# Strict FQN pattern: DB.SCHEMA.TABLE with alphanumeric + underscore only
+_FQN_PATTERN = re.compile(r'^[A-Za-z_][A-Za-z0-9_$]*\.[A-Za-z_][A-Za-z0-9_$]*\.[A-Za-z_][A-Za-z0-9_$]*$')
+_IDENT_PATTERN = re.compile(r'^[A-Za-z_][A-Za-z0-9_$]*$')
+
+def _validate_fqn(name: str, label: str):
+    """Validate that name is a safe 3-part Snowflake identifier."""
+    if not _FQN_PATTERN.match(name):
+        raise ValueError(
+            f"Invalid {label}: '{name}'. "
+            f"Must be DB.SCHEMA.TABLE with alphanumeric/underscore characters only."
+        )
+
+def _validate_identifier(name: str, label: str):
+    """Validate that name is a safe single Snowflake identifier."""
+    if not _IDENT_PATTERN.match(name):
+        raise ValueError(
+            f"Invalid {label}: '{name}'. "
+            f"Must contain only alphanumeric/underscore characters."
+        )
+
+# Strict FQN pattern: DB.SCHEMA.TABLE with alphanumeric + underscore only
+_FQN_PATTERN = re.compile(r'^[A-Za-z_][A-Za-z0-9_$]*\.[A-Za-z_][A-Za-z0-9_$]*\.[A-Za-z_][A-Za-z0-9_$]*$')
+_IDENT_PATTERN = re.compile(r'^[A-Za-z_][A-Za-z0-9_$]*$')
+
+def _validate_fqn(name: str, label: str):
+    """Validate that name is a safe 3-part Snowflake identifier."""
+    if not _FQN_PATTERN.match(name):
+        raise ValueError(
+            f"Invalid {label}: '{name}'. "
+            f"Must be DB.SCHEMA.TABLE with alphanumeric/underscore characters only."
+        )
+
+def _validate_identifier(name: str, label: str):
+    """Validate that name is a safe single Snowflake identifier."""
+    if not _IDENT_PATTERN.match(name):
+        raise ValueError(
+            f"Invalid {label}: '{name}'. "
+            f"Must contain only alphanumeric/underscore characters."
+        )
 
 
 def convert_dataset(
@@ -33,6 +74,13 @@ def convert_dataset(
     connection_name: str,
     drop_target: bool = False
 ):
+    _validate_fqn(source_table, "source-table")
+    _validate_fqn(target_table, "target-table")
+    _validate_identifier(question_col, "question-col")
+    _validate_identifier(answer_col, "answer-col")
+    if tool_col:
+        _validate_identifier(tool_col, "tool-col")
+
     conn = snowflake.connector.connect(connection_name=connection_name)
     cursor = conn.cursor()
 

@@ -16,10 +16,34 @@ Example:
 
 import os
 import json
+import re
 import sys
 import time
 import snowflake.connector
 import requests
+
+# Strict FQN pattern: DB.SCHEMA.TABLE with alphanumeric + underscore only
+_FQN_PATTERN = re.compile(r'^[A-Za-z_][A-Za-z0-9_$]*\.[A-Za-z_][A-Za-z0-9_$]*\.[A-Za-z_][A-Za-z0-9_$]*$')
+
+
+def _validate_fqn(name: str, label: str):
+    """Validate that name is a safe 3-part Snowflake identifier."""
+    if not _FQN_PATTERN.match(name):
+        raise ValueError(
+            f"Invalid {label}: '{name}'. "
+            f"Must be DB.SCHEMA.TABLE with alphanumeric/underscore characters only."
+        )
+
+# Strict FQN pattern: DB.SCHEMA.TABLE with alphanumeric + underscore only
+_FQN_PATTERN = re.compile(r'^[A-Za-z_][A-Za-z0-9_$]*\.[A-Za-z_][A-Za-z0-9_$]*\.[A-Za-z_][A-Za-z0-9_$]*$')
+
+def _validate_fqn(name: str, label: str):
+    """Validate that name is a safe 3-part Snowflake identifier."""
+    if not _FQN_PATTERN.match(name):
+        raise ValueError(
+            f"Invalid {label}: '{name}'. "
+            f"Must be DB.SCHEMA.TABLE with alphanumeric/underscore characters only."
+        )
 
 
 def get_snowflake_url_and_token(connection_name: str):
@@ -127,6 +151,7 @@ def invoke_agent(database: str, schema: str, agent_name: str, question: str,
 
 def run_batch(database: str, schema: str, agent_name: str,
               eval_table: str, connection_name: str):
+    _validate_fqn(eval_table, "eval-table")
     conn, base_url, token = get_snowflake_url_and_token(connection_name)
     cursor = conn.cursor()
 

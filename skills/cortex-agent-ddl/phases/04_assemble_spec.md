@@ -90,6 +90,8 @@ For each tool (SVs + CSS + custom in order from Phase 2):
 
 ## Step 4.5: Build tool_resources
 
+> ⚠️ **CRITICAL — #1 deployment failure**: Every `cortex_analyst_text_to_sql` tool MUST have `execution_environment` nested inside its `tool_resources` entry. Without it, `CREATE AGENT` succeeds but `DATA_AGENT_RUN` fails with error 399504 ("missing execution environment"). This is NOT optional. Do NOT use a flat `"warehouse"` key — it must be the nested structure shown below.
+
 For each SV tool:
 ```json
 "<TOOL_NAME>": {

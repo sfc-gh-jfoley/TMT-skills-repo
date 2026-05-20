@@ -138,7 +138,7 @@ DESCRIBE verification:
   ✓ Tools: 2 — [SubscriberAnalytics, CustomerSupportSearch]
   ✓ EnableAgenticAnalyst: true
   ✓ Warehouse: COMPUTE_WH
-  ✓ Profile: "EchoStar Subscriber 360" / robot / #0057B8
+  ✓ Profile: "Customer Analytics 360" / robot / #0057B8
 ```
 
 If any check fails: fix `AGENT_SPEC` → re-run Phase 5 → re-execute.

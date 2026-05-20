@@ -54,7 +54,7 @@ $$;
 ```
 
 Use `CHR(39)` escaping if the spec contains literal `$$` in instruction text.
-Name convention: `{BASE_AGENT}_{VARIANT_SUFFIX}` (e.g., DISH_AGENT_BASE, DISH_AGENT_AGENTIC).
+Name convention: `{BASE_AGENT}_{VARIANT_SUFFIX}` (e.g., MY_AGENT_BASE, MY_AGENT_AGENTIC).
 
 **STOP GATE:** Show the deploy SQL for each variant and ask for confirmation.
 
@@ -278,7 +278,7 @@ still holds under the updated instructions.
 - If a metric drops >10% from the initial sweep baseline on the current winner, flag it even if the winner doesn't change — the instructions may be degrading the flag config's strengths.
 - If stddev increases significantly (>2x initial), the instructions may be introducing inconsistency.
 
-## Key Learnings from Dish Flag Sweep
+## Key Learnings from Flag Sweep Testing
 
 - EnableAgenticAnalyst=true improves correctness but can reduce logical consistency
 - DisableFastPath=true (with agentic) gives the highest correctness by forcing full reasoning

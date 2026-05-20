@@ -56,6 +56,97 @@ def build_search_content(raw_row, description):
     )
 
 
+def run_tier_half(session, domain_name, meta_db) -> int:
+    """
+    Tier 0.5 — DOC_CONTEXT pre-enrichment (zero AI cost).
+
+    Before heuristics run, check whether 16_ingest_docs.py has stored
+    documentation for this domain. If DOC_CONTEXT rows exist, apply their
+    extracted descriptions to CONCEPTS where the current quality is low.
+    Only updates rows with enrichment_quality_score < 0.82 so it never
+    overwrites AI_EXTRACT (Tier 2) or AI_COMPLETE (Tier 3) results.
+    """
+    # DOC_CONTEXT may not exist yet — skip silently if absent
+    try:
+        check = session.sql(f"""
+            SELECT COUNT(*) AS cnt
+            FROM {meta_db}.INFORMATION_SCHEMA.TABLES
+            WHERE TABLE_SCHEMA = 'META' AND TABLE_NAME = 'DOC_CONTEXT'
+        """).collect()
+        if not check or check[0]['CNT'] == 0:
+            return 0
+    except Exception:
+        return 0
+
+    try:
+        doc_rows = session.sql(f"""
+            SELECT
+                t.value:table_name::VARCHAR      AS tbl_name,
+                t.value:description::VARCHAR     AS tbl_desc,
+                t.value:columns                  AS col_entries
+            FROM {meta_db}.META.DOC_CONTEXT,
+                 LATERAL FLATTEN(input => extracted_tables) t
+            WHERE domain = ?
+              AND is_active = TRUE
+              AND t.value:table_name IS NOT NULL
+              AND t.value:description IS NOT NULL
+        """, [domain_name.upper()]).collect()
+    except Exception:
+        return 0
+
+    if not doc_rows:
+        return 0
+
+    count = 0
+    for dr in doc_rows:
+        tbl_name = (dr['TBL_NAME'] or '').strip().upper()
+        description = (dr['TBL_DESC'] or '').strip()
+        col_entries = dr['COL_ENTRIES']
+        if not tbl_name or not description:
+            continue
+
+        # Build column description hints for search_content enrichment
+        col_hints = ''
+        if col_entries:
+            try:
+                import json as _json
+                cols = _json.loads(col_entries) if isinstance(col_entries, str) else col_entries
+                col_hints = ' '.join([
+                    f"{c.get('name','')}: {c.get('description','')}"
+                    for c in (cols or [])
+                    if c.get('name') and c.get('description')
+                ])
+            except Exception:
+                pass
+
+        search_suffix = f' {col_hints}' if col_hints else ''
+
+        rows = session.sql(f"""
+            SELECT concept_id, enrichment_quality_score
+            FROM {meta_db}.META.CONCEPTS
+            WHERE UPPER(source_table) = ?
+              AND concept_level = 'table'
+              AND is_active = TRUE
+              AND (enrichment_quality_score IS NULL OR enrichment_quality_score < 0.82)
+        """, [tbl_name]).collect()
+
+        for row in rows:
+            session.sql(f"""
+                UPDATE {meta_db}.META.CONCEPTS
+                SET description              = ?,
+                    search_content           = search_content || ?,
+                    enrichment_source        = 'DOC_CONTEXT',
+                    enrichment_tier          = 0,
+                    enrichment_quality_score = 0.82,
+                    enrichment_timestamp     = CURRENT_TIMESTAMP(),
+                    updated_at               = CURRENT_TIMESTAMP()
+                WHERE concept_id = ?
+            """, [description, search_suffix, row['CONCEPT_ID']]).collect()
+            count += 1
+
+    return count
+
+
 def run_ontology_hook(session, domain_name, meta_db):
     ont_agent = get_config(session, domain_name, 'ontology_agent')
     if not ont_agent:
@@ -307,12 +398,12 @@ def run_tier2(session, meta_db, domain_name):
         return 0, 0.0
 
 
-def run_tier3(session, meta_db, domain_name):
+def run_tier3(session, meta_db, domain_name, llm_model='claude-sonnet-4'):
     try:
         complete_sql = f"""
             SELECT c.concept_id, c.source_table, c.source_schema, c.description,
                 SNOWFLAKE.CORTEX.COMPLETE(
-                    'claude-3-5-sonnet',
+                    '{llm_model}',
                     ARRAY_CONSTRUCT(OBJECT_CONSTRUCT(
                         'role', 'user',
                         'content', 'Write a 2-sentence business description for a Snowflake table named "' ||
@@ -354,7 +445,13 @@ def run_tier3(session, meta_db, domain_name):
 def main(session, domain_name: str, max_tier: int) -> str:
     meta_db = domain_name.upper() + '_META'
 
+    # Read LLM model from config — used by Tier 3 so all AI calls are config-driven
+    llm_model = get_config(session, domain_name, 'llm_model') or 'claude-sonnet-4'
+
     ont_count = run_ontology_hook(session, domain_name, meta_db)
+
+    # Tier 0.5 — DOC_CONTEXT pre-enrichment (free; runs before heuristics)
+    t_half = run_tier_half(session, domain_name, meta_db)
 
     t0 = run_tier0(session, domain_name, meta_db)
 
@@ -368,10 +465,10 @@ def main(session, domain_name: str, max_tier: int) -> str:
 
     t3, cost3 = 0, 0.0
     if max_tier >= 3:
-        t3, cost3 = run_tier3(session, meta_db, domain_name)
+        t3, cost3 = run_tier3(session, meta_db, domain_name, llm_model)
 
     total_cost = cost1 + cost2 + cost3
-    total = t0 + t1 + t2 + t3 + ont_count
+    total = t_half + t0 + t1 + t2 + t3 + ont_count
 
     session.sql(f"""
         UPDATE KG_CONTROL.PUBLIC.DOMAIN_REGISTRY
@@ -381,6 +478,6 @@ def main(session, domain_name: str, max_tier: int) -> str:
 
     return (
         f"ENRICHED: {domain_name.upper()} \u2014 {total} concepts. "
-        f"Tiers: 0={t0}, 1={t1}, 2={t2}, 3={t3}. "
+        f"Tiers: doc={t_half}, 0={t0}, 1={t1}, 2={t2}, 3={t3}. "
         f"Est. cost: ${total_cost:.4f}."
     )

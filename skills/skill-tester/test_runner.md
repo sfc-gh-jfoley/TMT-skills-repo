@@ -13,9 +13,9 @@ Orchestrate 3 parallel skill test runs, collect results, compare for consistency
 
 ## Step 1: Load the fixture
 
-Read the specified fixture file:
+Read the specified fixture file from this skill's `fixtures/` directory:
 ```bash
-cat ~/.snowflake/cortex/skills/skill-tester/fixtures/<fixture_file>.yaml
+cat fixtures/<fixture_file>.yaml
 ```
 
 Extract:
@@ -64,9 +64,8 @@ You are running a skill test. Your job is to execute the skill end-to-end
 using the fixture inputs below, without waiting for user input at stopping points.
 
 TARGET SKILL: <FIXTURE.skill>
-SKILL PATH: ~/.snowflake/cortex/skills/<FIXTURE.skill>/
 
-START BY: Reading ~/.snowflake/cortex/skills/<FIXTURE.skill>/SKILL.md
+START BY: Invoke the skill tool with command "<FIXTURE.skill>" to load the skill's SKILL.md
 Then follow the skill's documented phases and workflow in order.
 
 SNOWFLAKE CONNECTION: <FIXTURE.connection>

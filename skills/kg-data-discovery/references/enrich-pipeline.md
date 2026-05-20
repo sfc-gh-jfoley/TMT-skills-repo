@@ -4,6 +4,32 @@ Cost-tiered AI enrichment: transform RAW_CONCEPTS into searchable, AI-enriched C
 
 ## Enrichment Tiers
 
+### Tier 0.5: DOC_CONTEXT (Free — runs before heuristics)
+
+Zero AI cost. Uses documentation artifacts ingested via `16_ingest_docs.py` (INGEST_DOCS operation).
+
+**What it does:**
+- Checks whether `{DOMAIN}_META.META.DOC_CONTEXT` exists and has rows for this domain
+- If yes, applies extracted table/column descriptions directly to CONCEPTS
+- Only updates concepts with `enrichment_quality_score < 0.82` — never overwrites AI_EXTRACT or AI_COMPLETE results
+- Sets `enrichment_source = 'DOC_CONTEXT'`, `enrichment_tier = 0`, `quality = 0.82`
+
+**When to use:**
+- Customer has schema docs, README files, data dictionaries, or dbt `schema.yml`
+- Tables have cryptic names with no SQL comments
+- Run INGEST_DOCS before ENRICH to maximize free coverage before paying for AI tiers
+
+**To ingest docs first:**
+```sql
+CALL {DOMAIN}_META.META.INGEST_DOCS(
+    '<domain>',
+    '<paste doc text here>',
+    'data_dict'   -- or: schema_doc | readme | er_diagram | dbt_schema | manual
+);
+```
+
+**Cost:** $0 (no AI calls — uses pre-extracted descriptions from DOC_CONTEXT)
+
 ### Tier 0: Free Heuristics (Always Run)
 
 Zero AI cost. Pattern-based enrichment from metadata alone.
@@ -80,7 +106,7 @@ For complex interpretation tasks.
 
 ```sql
 SELECT SNOWFLAKE.CORTEX.AI_COMPLETE(
-  'claude-3-5-sonnet',
+  -- model read from DOMAIN_CONFIG.llm_model (default: claude-sonnet-4)
   CONCAT(
     'Analyze this table schema and provide: 1) business purpose, 2) key dimensions, 3) key metrics, 4) likely join keys to other tables.\n\n',
     'Table: ', :table_fqn, '\n',

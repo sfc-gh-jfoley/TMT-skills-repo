@@ -199,15 +199,24 @@ What would you like to do next?
   [5] Fix a smoke test failure
       Return to Phase 3 (instructions) or Phase 2 (tool descriptions)
       based on the failure type identified above.
+
+  [6] CI/CD deployment pipeline
+      Set up automated deployment from a Git-tracked spec file.
+      GitHub Actions / GitLab CI / Azure Pipelines with OIDC auth,
+      environment promotion (DEV → TEST → PROD), rollback, and
+      drift detection.
+      Best when: you want to deploy this agent across environments
+      from a CI/CD pipeline instead of manual SQL execution.
+      → Proceeds to Phase 8
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 ```
 
 Recommended path based on smoke test score:
-- Score ≥ 80%: Options [1], [2], or [4] are all reasonable
+- Score ≥ 80%: Options [1], [2], [4], or [6] are all reasonable
 - Score 60-79%: Recommend [5] first, then [2]
 - Score < 60%: Recommend [5] — don't run evals on a broken agent
 
-Wait for user selection. If [4], proceed to Step 7.7. Otherwise, surface the appropriate skill prompt or return to the indicated phase.
+Wait for user selection. If [4], proceed to Step 7.7. If [6], load `phases/08_cicd_deploy.md`. Otherwise, surface the appropriate skill prompt or return to the indicated phase.
 
 ---
 

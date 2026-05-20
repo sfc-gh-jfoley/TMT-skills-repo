@@ -21,6 +21,21 @@ Discovery graduates to curated SVs over time. Stable, FK-rich domains can gradua
 
 ---
 
+## USE ME WHEN
+
+| Signal | Use kg-data-discovery |
+|--------|----------------------|
+| "What data do we have on X?" | Yes — unknown schema, need discovery |
+| Tables have cryptic names, no docs | Yes — ENRICH will AI-describe them |
+| Cross-database questions, FK chains unknown | Yes — DETECT_RELATIONSHIPS maps them |
+| Schema changes frequently | Yes — WATCH detects drift |
+| Customer has schema docs / data dict | Yes — INGEST_DOCS + ENRICH Tier 0.5 |
+| Need to graduate to a formal ontology | Yes — KG provides invocation context for ontology-stack-builder |
+| Known KPIs, stable schema, BI replacement | No — use semantic-view-ddl or vqr-semantic-view-generator directly |
+| Clean schema, all join keys known, quick POC | No — cortex-accelerator VQR_DIRECT path is faster |
+
+---
+
 ## STEP ZERO: Ask Mode (ALWAYS DO THIS FIRST)
 
 Every invocation of this skill MUST begin by asking the user how they want to work. No detection, no guessing — just ask.
@@ -540,7 +555,12 @@ EMIT MANIFEST — kg-data-discovery
   },
   "css_service": "<fully-qualified CSS name, e.g. SALESFORCE_META.META.DOMAIN_SEARCH>",
   "stability_score": "<0.0–1.0 float — ratio of Known & Current objects to total indexed>",
-  "table_count": <integer — total table-level concepts indexed>
+  "table_count": "<integer — total table-level concepts indexed>",
+  "join_evidence": "<integer — count of QUERY_JOIN relationships detected from QUERY_HISTORY>",
+  "doc_coverage": "<0.0–1.0 float — fraction of tables that have a DOC_CONTEXT entry>",
+  "data_confidence": "<0.0–1.0 float — mean enrichment_quality_score across all table-level concepts>",
+  "cryptic_tables": ["<TABLE_FQN>"],
+  "usage_hotspots": ["<TABLE_FQN>"]
 }
 ```
 
@@ -556,6 +576,11 @@ EMIT MANIFEST — kg-data-discovery
 | `css_service` | FQN of the created Cortex Search Service — read from `DOMAIN_CONFIG.css_service_fqn` |
 | `stability_score` | `(Known & Current count) / (total OBJECT_STATE count)` — 1.0 = fully stable, 0.0 = all shadow/drifted |
 | `table_count` | `SELECT COUNT(*) FROM CONCEPTS WHERE concept_level = 'table'` |
+| `join_evidence` | `SELECT COUNT(*) FROM RELATIONSHIPS WHERE relationship_type = 'QUERY_JOIN'` |
+| `doc_coverage` | `(tables with enrichment_source = 'DOC_CONTEXT') / table_count` — 0.0 if INGEST_DOCS never run |
+| `data_confidence` | `SELECT AVG(enrichment_quality_score) FROM CONCEPTS WHERE concept_level = 'table'` |
+| `cryptic_tables` | Table FQNs where `enrichment_quality_score < 0.4` or description = source_table name — up to 10 |
+| `usage_hotspots` | Top 5 table FQNs by `query_count DESC` from CONCEPTS |
 
 After emitting, offer to persist the manifest to memory:
 
