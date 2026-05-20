@@ -1,0 +1,26 @@
+{
+  "deliverable_id": "",
+  "task_id": "",
+  "verdict": "PASS",
+  "spec_verified": "",
+  "tests_run": [
+    {
+      "test": "",
+      "result": "PASS",
+      "notes": ""
+    }
+  ],
+  "failures": [
+    {
+      "severity": "HIGH",
+      "file": "",
+      "line": 0,
+      "description": "",
+      "spec_requirement": "",
+      "suggested_fix": ""
+    }
+  ],
+  "coverage_gaps": [],
+  "tested_at": "",
+  "tested_by": "Tester"
+}
