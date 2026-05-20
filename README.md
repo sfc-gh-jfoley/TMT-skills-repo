@@ -70,6 +70,18 @@ cp -R skills/<skill-name> ~/.snowflake/cortex/skills/
 | `doc-reviewer` | Review documentation quality |
 | `plan-reviewer` | Review implementation plan quality |
 
+## Individual Plugin Repos
+
+Each plugin is also available as a standalone install:
+
+| Plugin | Install | Skills |
+|--------|---------|--------|
+| [cortex-agent-toolkit](https://github.com/sfc-gh-jfoley/cortex-agent-toolkit) | `cortex plugin install sfc-gh-jfoley/cortex-agent-toolkit` | cortex-agent-ddl, agent-evaluation, agent-flag-tester, cortex-agent-optimization, cortex-agent-flags, query-cortex-agent |
+| [cortex-architect-builder](https://github.com/sfc-gh-jfoley/cortex-architect-builder) | `cortex plugin install sfc-gh-jfoley/cortex-architect-builder` | agent-architect |
+| [ops-monitor](https://github.com/sfc-gh-jfoley/ops-monitor) | `cortex plugin install sfc-gh-jfoley/ops-monitor` | release-change-monitor, artifact-drift-monitor, self-healing-pipeline |
+| [rule-governance](https://github.com/sfc-gh-jfoley/rule-governance) | `cortex plugin install sfc-gh-jfoley/rule-governance` | rule-creator, rule-reviewer, rule-loader, bulk-rule-reviewer, memory-organizer |
+| [coco-meta](https://github.com/sfc-gh-jfoley/coco-meta) | `cortex plugin install sfc-gh-jfoley/coco-meta` | skill-tester, skill-timing, prompt-determinism-tester, doc-reviewer, plan-reviewer |
+
 ## Update
 
 ```bash
