@@ -1,229 +1,572 @@
 ---
 name: agent-architect
 description: >
-  General-purpose multi-agent coding framework. Accepts any project brief —
-  iPhone app, demo, Native App, data pipeline, web app, anything — and
-  orchestrates a full team to research, plan, build, review, and test it.
-  The Architect determines team count, researchers gather context in parallel,
-  workers claim tasks via checkout, a Security Architect gates every task,
-  and independent testers verify each deliverable.
-  Triggers: architect project, build project, assign teams, spin up a team,
-  I want to build, create a project team, agent architect, offshore team,
-  multi-agent build, coordinate agents, spawn teams.
+  Multi-agent project framework. Accepts any project brief and orchestrates a
+  team to research, plan, build, security-gate, and test it. The Architect
+  determines team size, researchers gather context in parallel, workers claim
+  tasks, SecArch gates every merge, and testers verify independently.
+  Key differentiator: structured spec-building phase (INTAKE→RESEARCH→PLAN)
+  where Researcher + SecArch + Architect assess what's new, what's possible,
+  and what's risky BEFORE committing to execution.
+triggers:
+  - architect project
+  - build project
+  - assign teams
+  - spin up a team
+  - agent architect
+  - offshore team
+  - multi-agent build
+  - coordinate agents
+  - spawn teams
+  - headless build
 ---
 
-# Agent Architect Framework
+# Agent Architect v3.1
 
 ## What This Is
 
-A coding project OS for CoCo. You describe what you want built. The framework does the rest:
+A coding project OS for CoCo. You describe what you want built. The framework:
 
-1. **Researcher agents** gather context in parallel (codebase, docs, patterns, APIs)
-2. **Architect** synthesizes research → determines team count → decomposes into tasks
-3. **Worker agents** claim tasks via checkout (git-like locking) → build
-4. **Security Architect** gates every completed task before it can ship
-5. **Tester agents** independently verify every deliverable
+1. **Spec Discovery** — Researchers + SecArch explore what exists, what's new, what's risky
+2. **Architect** synthesizes findings → determines team count → decomposes into tasks
+3. **Workers** implement tasks (TDD-first, model-right-sized)
+4. **Security Architect** gates every task before merge
+5. **Testers** independently verify each deliverable
 
-No two agents step on each other. All coordination flows through `project-manifest.json`.
+All state is committed to git as it happens — sessions can die and state is recoverable.
 
 ## When to Use
 
 - Any project with ≥ 3 independent workstreams
 - Projects requiring parallel execution (frontend + backend + infra, etc.)
-- Anywhere you'd normally coordinate offshore teams
-- When you want security review baked in at the task level, not as an afterthought
+- When you want security review baked in at the task level
+- When spec-building requires exploration of what's possible before committing
+- Headless/offshore: autonomous execution after plan approval
 
 ## How to Invoke
 
-Just describe what you want built:
-
+Describe what you want built:
 ```
-"I want to build an iPhone app that tracks my Snowflake usage"
-"Build me a React dashboard for the cortex-dashboard project"
-"I need a Snowflake Native App for KG discovery with hub/spoke deployment"
-"Create a demo for AT&T IoT with 6 CoCo prompts"
+"Build me a React dashboard for Cortex usage"
+"I need a Snowflake Native App for KG discovery"
+"Create a Python CLI that deploys semantic views from YAML"
+"Build this headless — I'll check back when it's done"
 ```
 
-The Architect picks it up from there.
+---
 
 ## Framework Files
 
 | File | Role |
 |---|---|
-| `agents/architect.agent.md` | Project Architect — planning, team sizing, global review |
-| `agents/security.agent.md` | Security Architect — blocking per-task security gate |
-| `agents/researcher.agent.md` | Researcher — parallel context gathering, read-only |
-| `agents/worker.agent.md` | Worker — task checkout, execution, checkin |
-| `agents/tester.agent.md` | Tester — independent deliverable verification |
-| `templates/project-manifest.json` | Cross-talk state bus |
-| `templates/task-checkout.json` | Task checkout format |
-| `templates/test-report.json` | Test report format |
+| `roles/model-map.md` | Model assignments per role (cost/speed right-sizing) |
+| `roles/researcher.md` | Researcher prompt template |
+| `roles/security-gate.md` | SecArch checklist + verdict format |
+| `roles/worker.md` | Worker TDD protocol + ownership rules |
+| `roles/tester.md` | Spec-blind verification protocol |
+| `references/security-checklist.md` | Reusable security checklist (standalone) |
+| `references/escalation-format.md` | Structured escalation template |
+| `references/retrospective-protocol.md` | Post-project learning protocol |
+| `templates/manifest.log` | Durable completion log template |
+
+---
 
 ## Project Lifecycle
 
 ```
-INTAKE → RESEARCH → PLAN → EXECUTE → REVIEW → TEST → SHIP
-   ↑          ↑        ↑       ↑          ↑        ↑      ↑
-  User    Researchers  Arch  Workers    SecArch  Testers  Arch
+Phase 0: INTAKE         → Architect (interactive, Opus)
+Phase 1: SPEC DISCOVERY → Researchers + SecArch (parallel, Sonnet)
+Phase 2: PLAN           → Architect synthesizes + presents (Opus)
+Phase 3: EXECUTE        → Workers (sequential drain, Sonnet)
+Phase 4: GATE           → SecArch per task (sequential, Sonnet)
+Phase 5: VERIFY         → Testers per task (sequential, Sonnet)
+Phase 6: SHIP           → Architect merges + retrospective (Opus)
 ```
+
+---
 
 ## Startup
 
 When this skill is invoked:
 
-1. Create the project working directory: `.agent-project/` in the current working dir
-2. Copy `templates/project-manifest.json` → `.agent-project/manifest.json`
-3. Copy `templates/task-checkout.json` → `.agent-project/checkout-format.json`
-4. Copy `templates/test-report.json` → `.agent-project/test-report-format.json`
-5. Initialize git in the project directory:
-   ```bash
-   git init
-   git checkout -b main
-   ```
-6. Create GitHub repo (derive slug from goal: lowercase, hyphens, ≤ 30 chars):
-   ```bash
-   gh repo create ${GH_ORG}/<project-slug> --private \
-     --description "<project_brief.goal>"
-   ```
-7. Write initial commit + push:
-   ```bash
-   git add .agent-project/manifest.json
-   git commit -m "init: <project-slug> via agent-architect"
-   git remote add origin <repo-url-from-step-6>
-   git push -u origin main
-   ```
-8. Write `manifest.git.remote` (repo URL) and `manifest.git.repo_name` (slug)
-9. Load `agents/architect.agent.md` — hand control to the Architect
-10. Architect runs the intake interview and begins Phase 1
+1. Create working directory: `.agent-project/` in current working dir
+2. Initialize `manifest.log` from `templates/manifest.log`
+3. Read `roles/model-map.md` for model assignments
+4. **Determine GitHub need**: Ask user — "Does this project need a GitHub repo, or local-only?"
+   - If GitHub: `gh repo create ${GH_ORG}/<slug> --private`, init git, push
+   - If local-only: `git init` in project root, no remote
+5. Create the CoCo team: `team_create(team_name="arch-<project-slug>")`
+6. Commit initial state: `git add .agent-project/ && git commit -m "init: <slug> via agent-architect"`
+7. Enter **Phase 0: Intake**
 
-## Cross-Talk Protocol
+---
 
-All agents communicate exclusively through `.agent-project/manifest.json`:
+## Phase 0: Intake (Architect)
 
-- **Researchers** → write `manifest.research[topic]`
-- **Architect** → writes `manifest.arch_plan`, `manifest.teams`, `manifest.tasks`
-- **Workers** → write `manifest.checkedout[task_id]` before touching files
-- **SecArch** → writes `manifest.security_reviews[task_id]`
-- **Testers** → write `manifest.test_results[deliverable_id]`
+Ask the user:
 
-Agents poll the manifest for state changes. Direct agent-to-agent messaging is NOT used.
+1. **What are we building?** (be specific: "iPhone app", "React dashboard", "Native App")
+2. **What does success look like?** (what the finished thing does/shows/produces)
+3. **What do we have to work with?** (existing codebase, APIs, schemas, design files)
+4. **What are the hard constraints?** (language, framework, account, connection)
+5. **What's the priority?** (ship fast vs. production quality)
+6. **Execution mode?** (interactive = gates ask you, headless = autonomous after plan approval)
 
-## Team Sizing (Architect decides)
+7. **Domain hints**: Based on the technology stack from step 3, append a `DOMAIN_HINTS` block
+   to manifest.log with domain-specific gotchas. Workers receive these hints injected into
+   their task prompt. Examples:
+   - Snowflake/SQL: `1. IF NOT EXISTS on all DDL; 2. Use IS NULL not =NULL; 3. GENERATOR() for seed data not row-by-row INSERT; 4. Qualify all column refs with alias`
+   - React/TypeScript: `1. key prop required on all list items; 2. loading + error states on every async component; 3. no hardcoded env values in components`
+   - Python API: `1. validate at system boundaries only; 2. timeout on all external calls; 3. no secrets in logs or error messages`
+   - Generic fallback: `1. no hardcoded credentials; 2. handle null/empty inputs; 3. log errors with context not raw exceptions`
+
+8. **Specbuilder check**: Run `ls spec/ .specbuilder.toml 2>/dev/null`
+   - Found → log `SPECBUILDER_PRESENT=true` in manifest.log
+   - Not found → log `SPECBUILDER_PRESENT=false` in manifest.log
+
+Record answers. Log `INTAKE_COMPLETE` to manifest.log. Commit. Proceed to Phase 1.
+
+---
+
+## Phase 1: Spec Discovery (Researchers + SecArch)
+
+**Purpose**: Understand what's possible before committing to a plan. This is the
+unique value — native CoCo teams skip this and go straight to task lists.
+
+For each unknown domain, spawn a Researcher (see `roles/researcher.md`):
+- "What does the existing codebase look like?"
+- "What APIs/SDKs are available for [technology]?"
+- "What Snowflake objects already exist?"
+- "What patterns do similar projects use?"
+
+Simultaneously spawn SecArch with a **pre-planning risk scan**:
+- "What security risks exist in this domain before we build?"
+- "What compliance constraints apply?"
+
+**Model**: All Phase 1 agents use Sonnet (see `roles/model-map.md`).
+
+**Anti-Flood Protocol** (sequential drain):
+1. Spawn all researchers + SecArch in one batch
+2. `agent_output(wait=true)` on ONE agent at a time — drain sequentially
+3. After each completes, append findings to manifest.log and `git commit`
+4. Never start Phase 2 until ALL Phase 1 agents have drained
+
+When all return → log `RESEARCH_COMPLETE`, commit, proceed to Phase 2.
+
+---
+
+## Phase 2: Plan (Architect)
+
+1. **Synthesize** all research findings into decision records
+2. **Determine team count** (see sizing table below)
+3. **Decompose into tasks** — each must have:
+   - Clear deliverable (file, function, deployed object)
+   - `ownership_scope`: files this task creates/modifies (NO overlap)
+   - Dependencies: which tasks must complete first
+   - `is_major_change`: true/false
+   - `test_criteria`: numbered atomic criteria — each a single sentence stating condition + expected result.
+     Minimum 2 per task. Tester reads these before reading any code.
+     Example: `"1. POST /auth returns 401 when token absent; 2. Response body matches {error: string} schema; 3. No credentials appear in logs"`
+4. **Create CoCo tasks**: `task_create()` with `blocked_by` for dependencies
+5. **Present plan to user** — do NOT proceed until confirmed
+6. Log `PLAN_APPROVED` to manifest.log. Commit.
+
+**Optional specbuilder handoff**: If `SPECBUILDER_PRESENT=true`, ask:
+"Formalize this plan as tracked spec modules before execution? (y/n)"
+- YES → write `spec/INTAKE.md` summarizing approved tasks (one requirement per task), load
+  skill `specbuilder` → route to `spec-generate` → proceed to Phase 3 only after key tasks
+  reach `status: accepted` in specbuilder.
+- NO → proceed directly to Phase 3.
+
+**Multi-team charter decomposition** (when team count ≥ 2 AND execution_mode=headless):
+Decompose the full task list into N independent TEAM CHARTERS before launching. Each charter
+is an independent slice with no intra-charter cross-task dependencies (cross-charter deps are
+resolved by the Primary Architect via git polling).
+
+Charter format (write to manifest.log under `CHARTERS_DEFINED`):
+```
+team: 1
+name: <domain-label>
+tasks: [task_01, task_02, task_03]
+integration_branch: arch/<slug>/main
+depends_on_teams: []   # list team numbers this charter must wait for
+```
+Log all charters under `CHARTERS_DEFINED` in manifest.log. Commit. Then launch Team Architects.
+
+### Team Sizing
 
 | Project scope | Teams |
 |---|---|
 | < 5 tasks, single domain | 1 team |
 | 5-15 tasks, 2-3 domains | 2-3 teams |
 | Full-stack (UI + API + DB + infra) | 3-4 teams |
-| Cross-account / multi-system | 4-5 teams |
 
-## Security Gate Rules
+---
 
-- Every task must pass SecArch review before completion
-- CRITICAL or HIGH findings → task rejected, returned to worker
-- MAJOR_CHANGE (touches shared interfaces/DDL/schemas) → Architect must also review
-- No batching: each task reviewed independently
+## Phase 3: Execute (Workers)
 
-## Retry & Escalation Rules
+For each ready task (no unmet deps), spawn a Worker (see `roles/worker.md`).
 
-| Event | Max Retries | Escalation |
+⛔ **DRAIN GATE — mandatory before Phase 4:**
+After spawning a batch of workers, drain EVERY worker before proceeding.
+Do NOT check task_list for new work, do NOT spawn the next batch, do NOT
+begin Phase 4 until every agent in the current batch has returned.
+
+**Shared-pool workers** (`team_mode="shared_pool"`, no worktree_isolation):
+```
+spawn all workers in batch
+for each worker in batch:
+    agent_output(agent_id=<id>, wait=true)   ← blocking wait; no polling loop
+task_list → check for newly unblocked tasks → spawn next batch if any
+```
+
+**Worktree-isolated workers** (`worktree_isolation=True`):
+Git-First Drain Loop (120s stuck threshold):
+```
+for each batch of ready tasks:
+    spawn all workers in batch (parallel, worktree_isolation=true)
+    for each worker in batch:
+        elapsed_since_commit = 0
+        last_commit = $(git log <worker-branch> -1 --format="%ct" 2>/dev/null || echo "0")
+
+        loop:
+            result = agent_output(agent_id, wait=false)
+            if agent completed → break
+
+            current = $(git log <worker-branch> -1 --format="%ct" 2>/dev/null || echo "0")
+            if current != last_commit:
+                last_commit = current
+                elapsed_since_commit = 0      # reset timer on git activity
+            else:
+                elapsed_since_commit += 30
+
+            if elapsed_since_commit >= 120:
+                → STUCK (see Cleanup Protocol section)
+                break
+
+            sleep(30)
+
+        read manifest.log → reconcile state → git commit log updates
+    check: did completions unblock new tasks? → next batch
+```
+
+**Model**: Workers use Sonnet (see `roles/model-map.md`).
+
+Workers commit to branches. They do NOT merge to main.
+
+---
+
+## Phase 4: Security Gate (SecArch)
+
+After each Worker completes, spawn SecArch (see `roles/security-gate.md`).
+
+**Sequential** — one review at a time (not parallel).
+
+Verdicts:
+- **APPROVED** → proceed to Phase 5, log + commit
+- **APPROVED_WITH_CONDITIONS** → create follow-up tasks, proceed
+- **REJECTED** → re-spawn Worker with remediation (max 2 retries → escalate)
+
+For `is_major_change` tasks: Architect ALSO reviews after SecArch approves.
+
+---
+
+## Phase 5: Verify (Testers)
+
+After SecArch APPROVES, spawn a Tester (see `roles/tester.md`).
+
+**Sequential** — one test at a time.
+
+Verdicts:
+- **PASS** → mark task COMPLETE, log + commit
+- **PASS_WITH_WARNINGS** → note warnings, mark COMPLETE
+- **FAIL** → re-spawn Worker with findings (max 2 retries → escalate)
+
+---
+
+## Phase 6: Ship
+
+When all tasks COMPLETE:
+
+1. **Pre-ship verify**: `grep -c "| DONE |" .agent-project/manifest.log` == expected
+2. **Merge branches** (if GitHub: `gh pr merge --squash --delete-branch`)
+3. **Tag release**: `git tag v1.0 -m "<goal> — initial ship"`
+4. **Write design-doc.md**: decisions, deviations, trade-offs
+5. **Run retrospective** (see `references/retrospective-protocol.md`)
+6. **Clean up**: `team_delete()`
+7. **Log ship**: append `SHIPPED` entry to manifest.log + `git add .agent-project/ && git commit -m "ship: <project-slug>"`
+
+---
+
+## Retry & Escalation
+
+| Event | Max Retries | Then |
 |---|---|---|
-| SecArch REJECTED | 2 | After 2nd rejection → Architect escalates to user with full findings |
-| Tester FAIL | 2 | After 2nd failure → Architect escalates to user with test report |
-| Worker BLOCKED (dependency) | 0 | Architect re-spawns worker after dependency completes |
-| Worker build loop (3 cycles) | 0 | Worker self-reports BLOCKED → Architect escalates to user |
-| Stuck task (no progress > 1hr) | 1 | Architect reclaims + re-spawns with fresh context |
+| SecArch REJECTED | 2 | Escalate (see `references/escalation-format.md`) |
+| Tester FAIL | 2 | Escalate |
+| Worker BLOCKED | 0 | Re-spawn after dependency completes |
+| Worker build loop (3 cycles) | 0 | Self-reports BLOCKED → escalate |
 
-**Escalation format** (written to user or `.agent-project/escalation.md`):
+---
+
+## State Management: manifest.log + Git
+
+**manifest.log is the single source of truth** for completion state.
+
+CoCo task notifications are unreliable under load (4+ agents cause flooding/lost
+notifications). manifest.log is the durable workaround.
+
+**Git-committed state**: Every phase transition and worker completion is committed to git.
+If a session crashes, state is recoverable from `git log .agent-project/manifest.log`.
+
+**Rules**:
+- Never merge a branch whose worker has no DONE entry in manifest.log
+- Every log write is immediately followed by `git add .agent-project/manifest.log && git commit -m "log: <event>"`
+- CoCo task_update is ALSO called (belt + suspenders) but manifest.log is canonical
+
+---
+
+## Headless / Multi-Team Mode
+
+**Default: always use multi-team (`num_teams: auto`), never single-team headless.**
+
+Single-team headless (`num_teams: 1`) is almost never the right choice:
+- It backgrounds one Opus session running Phases 0-6 in sequence — identical to interactive
+  mode except you can't watch it
+- No parallelism, no fresh contexts per team, no cost advantage
+- A long Opus session accumulates research + plan + worker results + SecArch verdicts across
+  all phases and hits context limits on any non-trivial project
+- If requirements are uncertain → use **interactive** so you can review Phase 2 before Phase 3
+- If requirements are clear and the project fits in a single context → also just use interactive,
+  it's faster to supervise than to diagnose a backgrounded failure via git log
+
+**Use headless multi-team when:**
+- Project is decomposable into ≥ 2 independent team charters
+- You want to run unattended (overnight, during meetings) after plan approval
+- You want parallel execution and bounded per-team context (Team Architects are Sonnet —
+  cheaper and each has a fresh context scoped to its charter, no context overflow)
+
+**What this actually is**: 1 Primary Architect (Opus) decomposes the project into N team
+charters then delegates to N Team Architects (Sonnet). Primary stays lean — it only holds
+charter definitions and polls git. All execution context lives inside each Team Architect.
+**Git is the only inter-team communication channel** — Primary does NOT rely on CoCo task
+notifications (too unreliable under load). User checks progress via `git log --oneline --all`.
+
+The Opus cost is bounded to Phase 0-2 synthesis and Phase 6 merge. Phases 3-5 run entirely
+on Sonnet inside Team Architects. This is the correct cost model.
+
+**Configuration** (set during Phase 0 intake or pre-populated):
 ```
-ESCALATION: <task_id> — <title>
-REASON: <SecArch rejected 2x | Tester failed 2x | Build loop stuck>
-ATTEMPTS: <what was tried across retries>
-FINDINGS: <cumulative findings from all attempts>
-RECOMMENDATION: <Architect's assessment of what's wrong>
-OPTIONS: 
-  A) Descope this task (remove from plan)
-  B) Provide guidance (Architect will relay to next Worker spawn)
-  C) Manual intervention (user fixes directly)
-```
-
-## Headless / Offshore Team Configuration
-
-For autonomous execution without user interaction during the build phase:
-
-### Configuration in manifest.json
-
-```json
-{
-  "execution_mode": {
-    "type": "headless",
-    "auto_approve_plan": false,
-    "auto_merge_prs": false,
-    "escalation_channel": "memory",
-    "max_parallel_workers": 4,
-    "retry_budget": 2,
-    "halt_on": [
-      "CRITICAL_security_finding",
-      "max_retries_exceeded",
-      "scope_creep_detected"
-    ]
-  }
-}
-```
-
-### Configuration Options
-
-| Field | Default | Description |
-|---|---|---|
-| `type` | `"interactive"` | `"interactive"` = ask user at each gate. `"headless"` = run autonomously after plan approval. |
-| `auto_approve_plan` | `false` | If `true`, Architect skips user plan approval. **Dangerous** — only for well-understood, repeatable project types. |
-| `auto_merge_prs` | `false` | If `true`, Architect merges PRs at SHIP without user confirmation. |
-| `escalation_channel` | `"user"` | `"user"` = ask_user_question. `"memory"` = cortex ctx remember (for async review). `"file"` = write to escalation.md. |
-| `max_parallel_workers` | `4` | Maximum concurrent Worker subagents. Higher = faster but more resource-intensive. |
-| `retry_budget` | `2` | Global retry limit per task across all gate types. |
-| `halt_on` | `[]` | Conditions that force the entire project to STOP. |
-
-### Launching a Headless Project
-
-From your primary CoCo session:
-
-```
-"Build me <project description>. Run it headless — I'll check back when it's done or if it gets stuck."
-```
-
-The Architect:
-1. Runs intake (asks 5 questions unless brief is pre-populated)
-2. Runs research phase
-3. Presents plan for approval (unless `auto_approve_plan: true`)
-4. After approval: executes autonomously
-5. On completion: writes SHIP artifacts + memory
-6. On halt: writes escalation.md + memory, STOPS
-
-### Pre-Populating a Headless Brief
-
-For repeatable project types, pre-write the manifest:
-
-```json
-{
-  "project_brief": {
-    "goal": "Build a Cortex Agent for <customer> with subscriber 360 semantic view",
-    "success_criteria": "Agent answers 6 sample questions correctly via DATA_AGENT_RUN",
-    "existing_assets": "Schema at customers/<slug>/schema_summary.md, DDL at demo_tables.sql",
-    "constraints": ["Snowflake only", "claude-sonnet-4-5 model", "connection: default"],
-    "priority": "ship_fast"
-  },
-  "execution_mode": {
-    "type": "headless",
-    "auto_approve_plan": true,
-    "max_parallel_workers": 2
-  }
-}
+execution_mode: headless
+num_teams: auto              # "auto" uses team sizing table, or set explicitly 1-4
+auto_approve_plan: false     # true only for well-understood repeatable projects
+escalation_channel: git
+retry_budget: 2
+team_poll_interval_seconds: 90     # multi-team only: how often Primary checks team git activity
+team_stuck_threshold_seconds: 1800 # multi-team only: no team commits for 30 min = team stuck
+halt_on:
+  - CRITICAL_security_finding
+  - max_retries_exceeded
+  - scope_creep_detected
 ```
 
-Then invoke: `"Run agent-architect on <path> — manifest is pre-populated."`
+**Two distinct polling modes (do not conflate):**
+- **Single-team** (`num_teams: 1`): Primary runs the Phase 3 git-first drain loop directly
+  (30s poll, 120s stuck threshold). `team_poll_interval_seconds` is unused.
+- **Multi-team** (`num_teams: 2+`): Primary delegates worker-level drain to Team Architects.
+  Primary runs a separate team-health poll at `team_poll_interval_seconds` (default 90s).
+  Team-level stuck is a different threshold (`team_stuck_threshold_seconds`, default 30 min)
+  because a team doing Phase 1 research legitimately produces no commits for 15+ minutes.
+
+**Primary Architect behavior (multi-team headless)**:
+1. Phases 0-2 run normally (plan requires user approval unless `auto_approve_plan: true`)
+2. Decompose into team charters (see Phase 2 charter decomposition)
+3. Create integration branch: `git checkout -b arch/<slug>/main`
+4. Launch N Team Architects in one batch (see spawn pattern below)
+5. Poll loop every `team_poll_interval_seconds` (90s):
+   `git log --all --since="90 seconds ago" --oneline`
+   → append activity summary to manifest.log + commit
+   → check for ESCALATION commits: `git log --all --grep="ESCALATION" --since="90 seconds ago"`
+     → if found: read escalation, determine if halt_on condition triggered
+   → check for team stuck: any team with no commits for `team_stuck_threshold_seconds`
+     → if found: see `references/cleanup-protocol.md` Multi-Team Stuck-Team Escalation
+6. Cross-team dependency gate: before unblocking Team B that `depends_on_teams: [1]`, verify:
+   `git log --all --grep="\[SHIPPED\] team-1" --oneline` → must be non-empty
+7. When ALL teams have SHIPPED tag → proceed to Phase 6 merge + retrospective
+
+**Team Architect behavior** (per team, backgrounded Sonnet):
+- Receives: slug, team number, charter task list, integration branch, manifest path
+- Runs mini Phase 1 (team-scoped research) → Phase 2 (charter task decomp) → Phases 3-5
+- Branch namespace: `arch/<slug>/team-<N>/` (workers write `arch/<slug>/team-<N>/worker-<task_id>`)
+- Completion signal: `git tag arch/<slug>/team-<N>/SHIPPED -m "team <N> complete"`
+  + append `TEAM_SHIPPED | team-<N> | <timestamp>` to manifest.log + commit
+- Escalations: `git commit -m "ESCALATION: team-<N> <task_id> — <summary>"`
+
+**SecArch + Tester gates are never bypassed** — each Team Architect runs its own Phase 4-5 cycle.
+For `is_major_change` tasks: Primary Architect ALSO reviews after Team's SecArch approves.
+
+**Launching Team Architects (Primary spawns after charter decomposition)**:
+```python
+for each charter:
+    Task(
+        subagent_type="general-purpose",
+        model="claude-sonnet-4-6",  # current_sonnet alias — see ~/.snowflake/cortex/vault/LLMs.md
+        run_in_background=True,
+        worktree_isolation=True,
+        team_name="arch-<slug>",
+        name="team-arch-<N>-<slug>",
+        prompt="""You are Team Architect <N> for project <slug>.
+Charter: <task list from manifest.log CHARTERS_DEFINED>
+Integration branch: arch/<slug>/main
+Your branch namespace: arch/<slug>/team-<N>/
+Manifest: .agent-project/manifest.log
+DOMAIN_HINTS: <inject from manifest.log DOMAIN_HINTS block>
+[inject full SKILL.md + all role files]
+Run Phases 1-5 for your charter only. On completion:
+  git tag arch/<slug>/team-<N>/SHIPPED -m "team <N> complete"
+  Append TEAM_SHIPPED entry to manifest.log and commit."""
+    )
+```
+
+**Self-launching Primary Architect (optional — for fully hands-off execution)**:
+```python
+Task(
+    subagent_type="general-purpose",
+    model="claude-opus-4-7",  # current_opus alias — see ~/.snowflake/cortex/vault/LLMs.md
+    run_in_background=True,
+    name="primary-arch-<slug>",
+    prompt="You are the Primary Architect for <slug>. [inject full SKILL.md + role files]. Run Phases 0-6."
+)
+```
+Use this only after plan is approved. Primary then handles charter decomp + team spawning autonomously.
+
+**Headless behavior**:
+- Escalations → `git commit -m "ESCALATION: <team/task> — <summary>"` on relevant branch
+  Review across all teams: `git log --all --grep=ESCALATION`
+- SecArch + Tester gates still block — never bypassed
+- On `halt_on` conditions: write to `.agent-project/escalation.md` + commit, STOP all teams
+- See `references/cleanup-protocol.md` for stuck-team and crash-recovery procedures
+
+---
+
+## Git Coordination Protocol
+
+Git is the source of truth and the inter-team communication bus. Every meaningful state
+transition must be committed. Teams and workers signal via parseable commit message conventions.
+
+**Branch namespace:**
+```
+arch/<slug>/main                          # integration branch (Primary Architect)
+arch/<slug>/team-<N>/                     # team namespace (Team Architect)
+arch/<slug>/team-<N>/worker-<task_id>     # worker branches (Workers)
+```
+
+**Commit message conventions (machine-parseable):**
+| Signal | Format |
+|---|---|
+| Worker checkpoint | `[WORKER] <task_id>: <STEP> — <summary>` |
+| Task complete | `[DONE] <task_id> — <summary>` |
+| Team shipped | `[SHIPPED] team-<N> — <summary>` |
+| Escalation | `ESCALATION: <team/task> — <summary>` |
+| Stuck worker | `STUCK: <task_id> — no git activity 120s` |
+| Cleanup event | `CLEANUP: <what> — <reason>` |
+| Log/state | `log: <event>` |
+
+**Primary Architect polling (headless):**
+```bash
+# All activity across all teams (last 5 min):
+git log --all --since="5 minutes ago" --oneline --decorate
+
+# Check if a specific team shipped:
+git log --all --grep="\[SHIPPED\] team-<N>" --oneline
+
+# All escalations across all teams:
+git log --all --grep="ESCALATION" --oneline
+
+# Worker progress on a specific task:
+git log --all --grep="\[WORKER\] <task_id>" --oneline
+```
+
+**Cross-team dependency gate:**
+```bash
+# Before starting Team B that depends_on_teams: [1]:
+git log arch/<slug>/team-1 --grep="\[SHIPPED\]" --oneline
+# Empty → Team 1 not shipped yet → do not start Team B
+# Non-empty → Team 1 shipped → unblock Team B
+```
+
+---
+
+## Cleanup Protocol
+
+**Stuck worker (detected by drain loop — no git commits in 120s):**
+1. `kill_agent(agent_id)`
+2. `git worktree remove --force <worktree_path>`
+3. `git commit -m "STUCK: <task_id> — no git activity 120s"`
+4. Append `STUCK | <task_id> | <timestamp>` to manifest.log + commit
+5. If `retry_count < retry_budget` → re-spawn worker with same task spec + DOMAIN_HINTS
+6. Else → escalate (see `references/escalation-format.md`)
+
+**Session crash recovery:**
+1. `git log .agent-project/manifest.log --oneline` → find last committed state
+2. `git worktree list` → identify dangling worktrees from crashed session
+3. For each dangling worktree:
+   - `git log <branch> --grep="\[DONE\]"` non-empty → task finished, just remove: `git worktree remove --force <path>`
+   - Empty → worker was mid-task → re-spawn with same task spec
+4. Append `RECOVERY | <timestamp> | resumed from <last-commit>` to manifest.log + commit
+
+**End-of-project cleanup (Phase 6 additions after existing steps):**
+```bash
+# Remove remaining worktrees:
+git worktree list
+git worktree remove --force <any remaining paths>
+
+# Prune merged worker + team branches:
+git branch --merged arch/<slug>/main | grep "arch/<slug>/" | xargs git branch -d
+
+# Final audit:
+git branch -a | grep "arch/<slug>/"   # should only show main after pruning
+```
+
+See `references/cleanup-protocol.md` for full recovery procedures and multi-team stuck-team escalation.
+
+---
+
+## Spawning Agents (Task Tool Calls)
+
+Every agent spawn MUST include the `model` parameter from `roles/model-map.md`:
+
+```python
+# Researcher
+Task(subagent_type="Explore", model="claude-sonnet-4-6",  # current_sonnet alias — see ~/.snowflake/cortex/vault/LLMs.md
+     run_in_background=True,
+     team_name="arch-<slug>", name="researcher-<topic>", prompt="...")
+
+# Worker
+Task(subagent_type="general-purpose", model="claude-sonnet-4-6",  # current_sonnet alias — see ~/.snowflake/cortex/vault/LLMs.md
+     run_in_background=True, worktree_isolation=True,
+     team_name="arch-<slug>", name="worker-<task_id>", prompt="...")
+
+# SecArch
+Task(subagent_type="general-purpose", model="claude-sonnet-4-6",  # current_sonnet alias — see ~/.snowflake/cortex/vault/LLMs.md
+     run_in_background=True, team_name="arch-<slug>",
+     name="secarch-<task_id>", prompt="...")
+
+# Tester
+Task(subagent_type="general-purpose", model="openai-gpt-5.2",  # tester_model alias — see ~/.snowflake/cortex/vault/LLMs.md
+     run_in_background=True, team_name="arch-<slug>",
+     name="tester-<task_id>", prompt="...")
+
+# Team Architect (multi-team headless only — spawned by Primary Architect)
+Task(subagent_type="general-purpose", model="claude-sonnet-4-6",  # current_sonnet alias — see ~/.snowflake/cortex/vault/LLMs.md
+     run_in_background=True, worktree_isolation=True,
+     team_name="arch-<slug>", name="team-arch-<N>-<slug>", prompt="...")
+```
+
+---
 
 ## Related Skills
 
-- `cortex-agent-optimization` — for optimizing Snowflake Cortex Agents built by this framework
-- `prompt-determinism-tester` — for validating prompts produced by this framework
-- `cortex-accelerator` — for Snowflake-specific Cortex AI builds (SV + agent pipelines)
+- `cortex-agent-optimization` — optimizing Snowflake Cortex Agents built by this framework
+- `prompt-determinism-tester` — validating prompts produced by this framework
+- `cortex-accelerator` — Snowflake-specific Cortex AI builds (SV + agent pipelines)

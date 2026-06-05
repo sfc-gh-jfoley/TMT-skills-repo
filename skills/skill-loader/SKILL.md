@@ -23,30 +23,36 @@ If unsure which skill matches, ask the user.
 
 | Skill | When to use | Path |
 |-------|-------------|------|
-| semantic-view-ddl | Build/edit semantic views (DDL path) | `skills/semantic-view-ddl/` |
-| semantic-view-discovery | Find SV candidates from schema analysis | `skills/semantic-view-discovery/` |
-| vqr-semantic-view-generator | Multi-domain SV from query history | `plugins/ontology-demo/skills/vqr-semantic-view-generator/` |
+| semantic-view-toolkit | Full SV lifecycle router (discovery, DDL, audit, eval, optimization, GEPA, watch, compose, VQR) | `plugins/semantic-view-toolkit/` |
+| sv-discovery | Find SV candidates from schema analysis | `plugins/semantic-view-toolkit/skills/sv-discovery/` |
+| sv-ddl | Build/edit semantic views (DDL path) | `plugins/semantic-view-toolkit/skills/sv-ddl/` |
+| sv-audit | Audit existing SV against usage patterns | `plugins/semantic-view-toolkit/skills/sv-audit/` |
+| sv-evaluation | Run Cortex Analyst evaluations on SVs | `plugins/semantic-view-toolkit/skills/sv-evaluation/` |
+| sv-optimization | Iterative SV improvement loop | `plugins/semantic-view-toolkit/skills/sv-optimization/` |
+| sv-gepa-optimizer | Population-based evolutionary SV optimization | `plugins/semantic-view-toolkit/skills/sv-gepa-optimizer/` |
+| sv-watch | Drift detection + SV maintenance monitoring | `plugins/semantic-view-toolkit/skills/sv-watch/` |
+| sv-composer | Nested SVs + multi-SV agent composition | `plugins/semantic-view-toolkit/skills/sv-composer/` |
+| vqr-generator | Auto-generate verified queries from query history | `plugins/semantic-view-toolkit/skills/vqr-generator/` |
+| semantic-view-ddl | (LEGACY) Build/edit semantic views — use sv-ddl instead | `skills/semantic-view-ddl/` |
+| semantic-view-discovery | (LEGACY) Find SV candidates — use sv-discovery instead | `skills/semantic-view-discovery/` |
 
 ### Cortex Agents
 
 | Skill | When to use | Path |
 |-------|-------------|------|
+| cortex-agent-toolkit | Full agent lifecycle router (create, eval, flags, optimize, GEPA, query) | `plugins/cortex-agent-toolkit/` |
 | cortex-agent-ddl | Create/deploy Cortex Agents | `plugins/cortex-agent-toolkit/skills/cortex-agent-ddl/` |
 | cortex-agent-flags | Agent experimental flags reference | `plugins/cortex-agent-toolkit/skills/cortex-agent-flags/` |
-| cortex-agent-optimization | Iterative agent prompt optimization | `plugins/cortex-agent-toolkit/skills/cortex-agent-optimization/` |
+| cortex-agent-optimization | Iterative agent prompt optimization + full lifecycle | `plugins/cortex-agent-toolkit/skills/cortex-agent-optimization/` |
 | agent-evaluation | Run EXECUTE_AI_EVALUATION | `plugins/cortex-agent-toolkit/skills/agent-evaluation/` |
 | agent-flag-tester | Compare agent flag variants (3-way) | `plugins/cortex-agent-toolkit/skills/agent-flag-tester/` |
 | query-cortex-agent | Query an existing agent via SQL | `plugins/cortex-agent-toolkit/skills/query-cortex-agent/` |
+| agent-gepa-optimizer | Evolutionary population-based agent optimization | `plugins/cortex-agent-toolkit/skills/agent-gepa-optimizer/` |
 
 ### Knowledge Graph & Ontology
 
 | Skill | When to use | Path |
 |-------|-------------|------|
-| cortex-accelerator | Guided discovery → agent build | `plugins/ontology-demo/skills/cortex-accelerator/` |
-| kg-data-discovery | KG crawl/enrich/relationship detection | `plugins/ontology-demo/skills/kg-data-discovery/` |
-| ontology-stack-builder | Build ontology-on-Snowflake | `plugins/ontology-demo/skills/ontology-stack-builder/` |
-
-| sql-table-extractor | Extract table definitions from SQL | `plugins/ontology-demo/skills/sql-table-extractor/` |
 
 ### Ops & Monitoring
 
@@ -55,6 +61,22 @@ If unsure which skill matches, ask the user.
 | artifact-drift-monitor | Check SV/DT/Agent drift | `plugins/ops-monitor/skills/artifact-drift-monitor/` |
 | release-change-monitor | Monitor Snowflake release changes | `plugins/ops-monitor/skills/release-change-monitor/` |
 | self-healing-pipeline | Auto-fix pipeline failures | `plugins/ops-monitor/skills/self-healing-pipeline/` |
+
+### ML & MLOps
+
+| Skill | When to use | Path |
+|-------|-------------|------|
+| ml-pipeline-toolkit | Full ML lifecycle router (feature store → train → experiments → registry → deploy → observe → lifecycle) | `plugins/ml-pipeline-toolkit/` |
+| ml-feature-store | Define entities, feature views (Dynamic Table-backed), point-in-time retrieval | `plugins/ml-pipeline-toolkit/skills/ml-feature-store/` |
+| ml-pipeline-build | Scaffold training pipelines (Snowpark ML, Container Runtime, stored procs) | `plugins/ml-pipeline-toolkit/skills/ml-pipeline-build/` |
+| ml-experiments | Track experiments, log runs, compare metrics (Snowflake-native, NOT MLflow) | `plugins/ml-pipeline-toolkit/skills/ml-experiments/` |
+| ml-registry | Register models, manage versions, metadata, RBAC | `plugins/ml-pipeline-toolkit/skills/ml-registry/` |
+| ml-deploy | Deploy to warehouse inference, SPCS service, or REST endpoint | `plugins/ml-pipeline-toolkit/skills/ml-deploy/` |
+| ml-observability | Create model monitors, query drift/performance/stat metrics | `plugins/ml-pipeline-toolkit/skills/ml-observability/` |
+| ml-log-inspector | Diagnose ML pipeline and model monitor failures (5-surface triage) | `plugins/ml-pipeline-toolkit/skills/ml-log-inspector/` |
+| ml-lifecycle | Promote via aliases, rollback, deprecate, govern model versions | `plugins/ml-pipeline-toolkit/skills/ml-lifecycle/` |
+| ml-functions | AutoML in SQL: FORECAST, ANOMALY_DETECTION, CLASSIFICATION, TOP_INSIGHTS | `plugins/ml-pipeline-toolkit/skills/ml-functions/` |
+| ml-watch | Scheduled retraining, data freshness SLAs, drift alert tasks | `plugins/ml-pipeline-toolkit/skills/ml-watch/` |
 
 ### Rules & Governance
 
@@ -81,15 +103,12 @@ If unsure which skill matches, ask the user.
 | Skill | When to use | Path |
 |-------|-------------|------|
 | lab-builder | Build HOL/workshop labs | `skills/lab-builder/` |
-| se-lab-intake | SE lab intake questionnaire | `plugins/se-workshop/skills/se-lab-intake/` |
-| executive-account-planning-markdown | Executive account plans | `plugins/se-workshop/skills/executive-account-planning-markdown/` |
-| snowflake-ml-container-runtime | ML Container Runtime workshop | `plugins/se-workshop/skills/snowflake-ml-container-runtime/` |
 
 ### Project Architecture
 
 | Skill | When to use | Path |
 |-------|-------------|------|
-| agent-architect | Multi-agent project builds (full framework) | `plugins/cortex-architect-builder/skills/agent-architect/` |
+| agent-architect | Multi-agent project builds (full framework, v3.0) | `skills/agent-architect/` |
 
 ### Diagrams & Visuals
 
