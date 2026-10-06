@@ -1,0 +1,824 @@
+---
+name: agent-model-tester
+description: >
+  Standalone Cortex Agent variant comparison testing. Creates model comparison variants
+  (_MODEL_A/B/C) and optional conditional flag variants, builds/validates eval dataset
+  with ground truth verification, runs DEV/TEST evaluations using EXECUTE_AI_EVALUATION,
+  and compares results across variants with statistical rigor.
+  Use when: model comparison, A/B test agents, compare orchestration models, flag comparison,
+  compare feature flags, agent variant testing, agent flag sweep, evaluate agent variants,
+  which model or config is best.
+  Produces flag_sweep_baseline.json — consumed by agent-optimizer
+  for automatic VARIANT REVALIDATION after optimization iterations.
+---
+
+## Prerequisites
+
+- A deployed Snowflake Cortex Agent with at least one `cortex_analyst_text_to_sql` tool
+- `snow` CLI installed with a named connection
+- Role with: `SNOWFLAKE.CORTEX_USER`, `EXECUTE TASK ON ACCOUNT`, `USAGE`/`CREATE DATASET ON SCHEMA` on agent schema
+
+## Overview
+
+This skill runs a complete flag comparison test in 7 phases:
+
+1. **Discover** — extract agent spec, validate tool descriptions, identify semantic views, **live smoke test**
+2. **Create Variants** — deploy 3 agent clones with different flag configs, **smoke test each**
+3. **Build/Validate Dataset** — create or validate eval table + DEV/TEST splits
+4. **Verify Ground Truth** — run queries against semantic views to confirm data exists
+5. **Generate Configs** — create YAML eval configs + upload to stage
+6. **Fire Evals** — launch all runs via `EXECUTE_AI_EVALUATION` + poll to completion
+7. **Compare Results** — extract scores, build comparison table, recommend winner
+
+Each phase has a STOP gate requiring user confirmation before proceeding.
+
+**Fail fast on tool routing.** No structural check — `DESCRIBE AGENT`, semantic view
+validation, `cortex analyst query` against a view — can detect an agent whose orchestration
+model ignores its tools at runtime. Only a live invocation can. Phases 1 and 2 therefore each
+end in a smoke test that asserts a `tool_use` block appears in the agent's response, and both
+hard-stop before any dataset or eval work begins.
+
+## Parameters
+
+Collect these from the user at the start (or detect from context):
+
+| Parameter | Description | Example |
+|---|---|---|
+| `<AGENT_FQN>` | Fully qualified agent name | `ACME_ANALYTICS.PUBLIC.ACME_AGENT` |
+| `<CONNECTION>` | Snowflake connection name | `default` |
+| `<DATABASE>` | Database containing agent | `ACME_ANALYTICS` |
+| `<SCHEMA>` | Schema containing agent | `PUBLIC` |
+| `<AGENT_NAME>` | Unqualified agent name | `ACME_AGENT` |
+| `<RUNS_PER_SPLIT>` | Eval runs per split (default 3) | `3` |
+| `<RUN_PREFIX>` | Prefix for run names | `acme_flag_v1` |
+
+---
+
+## Execution Mode
+
+Detect or ask whether to run in **INTERACTIVE** or **AUTONOMOUS** mode (same convention as
+`agent-optimizer`):
+
+- **INTERACTIVE** (default): All `STOP GATE` checkpoints in Phases 3–4 are active. The user
+  reviews and acknowledges before proceeding.
+- **AUTONOMOUS**: STOP GATEs do not block. Instead, at each gate:
+  1. Apply the gate's own stated auto-resolution (e.g., accept generated ground truth,
+     assign the standard split ratio, proceed past WARN-only verification).
+  2. Write one line to `<AGENT_NAME>_EVAL_NOTES` (or the run's manifest/log if one exists)
+     recording what was auto-resolved and why: `<timestamp> | GATE_AUTO_RESOLVED | <phase.step> | <what was ambiguous> | <default applied>`.
+  3. Continue immediately — do not summarize progress and wait, do not ask "should I proceed."
+  Genuine blocking conditions (FAIL > 0 in Step 4.3, fewer than 10 valid questions after
+  Step 3.1, Snowflake/API errors) still hard-stop in both modes — AUTONOMOUS mode skips
+  *human-judgment* gates, not *data-integrity* gates.
+
+Default to INTERACTIVE if the user's preference is unclear. If the user has stated a
+standing "run to completion" / "don't stop until done" directive for this task, treat
+that as an explicit request for AUTONOMOUS mode without asking again.
+
+---
+
+## Phase 1: Discover Agent
+
+### Step 1.1: Retrieve Agent Spec
+
+```bash
+cortex agents describe <AGENT_FQN>
+```
+
+If unavailable, fall back to:
+```sql
+DESCRIBE AGENT <AGENT_FQN>;
+```
+
+Extract from the spec:
+- `spec.instructions.orchestration` — current instructions
+- `spec.tools[]` — list of tools with types and descriptions
+- `spec.tool_resources` — mapping of tool names to semantic view FQNs and warehouses
+- `spec.models.orchestration` — current model
+- `spec.experimental` — current flag settings (if any)
+
+### Step 1.2: Validate Tool Descriptions
+
+**Gate ID:** `MODELTEST-TOOL-DESC-MISSING` — **TERMINATE**
+
+Each tool must have a non-empty, concise description stating what it does or what questions it
+answers. Keep routing rules and implementation details in `instructions.orchestration`.
+
+Good:
+```text
+Answers questions about sales, revenue, and returns by channel and date.
+```
+
+Avoid long inventories, routing instructions, and semantic-view implementation details.
+
+```sql
+DESCRIBE AGENT <AGENT_FQN>;
+
+WITH spec AS (
+  SELECT TRY_PARSE_JSON("agent_spec") AS s
+  FROM TABLE(RESULT_SCAN(LAST_QUERY_ID()))
+)
+SELECT
+    t.value:tool_spec:name::STRING AS TOOL_NAME,
+    t.value:tool_spec:type::STRING AS TOOL_TYPE,
+    CASE
+        WHEN COALESCE(LENGTH(TRIM(t.value:tool_spec:description::STRING)), 0) = 0
+        THEN 'FAIL'
+        ELSE 'PASS'
+    END AS STATUS
+FROM spec, LATERAL FLATTEN(input => s:tools) t;
+```
+
+Descriptions are nested at `tools[].tool_spec.description`.
+
+**Gate:** Any `FAIL` is a HARD STOP in both modes. Report the tool names. The agent must be
+updated before model comparison; an agent whose tools cannot be selected produces meaningless
+evaluation results.
+
+### Step 1.3: Identify Semantic Views
+
+For each tool of type `cortex_analyst_text_to_sql`, extract:
+- Tool name (e.g., `query_subscriber_360`)
+- Semantic view FQN from `tool_resources.{tool_name}.semantic_view`
+
+Store as `<SEMANTIC_VIEWS>` list for Phase 4 ground truth verification.
+
+### Step 1.4: Validate Semantic Views Exist
+
+For each semantic view:
+```sql
+DESCRIBE SEMANTIC VIEW <SEMANTIC_VIEW_FQN>;
+```
+
+If any fail, STOP — the agent's tools are broken and eval will be meaningless.
+
+### Step 1.5: Live Smoke Test — Confirm the Agent Actually Calls a Tool
+
+**Gate ID:** `MODELTEST-SMOKE-NO-TOOL-USE` — **TERMINATE**
+
+Everything above this point is a *structural* check. Structural checks cannot detect a
+tool-routing failure: the spec is well-formed, the semantic views resolve, `DESCRIBE AGENT`
+is green, and the agent still answers in plain prose without touching a tool. The only way to
+catch that is to invoke the agent and inspect the response content blocks.
+
+This step is mandatory and runs **before** any eval dataset work. It costs one agent
+invocation (~30-60s) and replaces the failure mode where the problem surfaces only after the
+dataset is built, N configs are uploaded, and 2N eval runs have been fired.
+
+Pick one representative question. Prefer, in order:
+1. A `sample_questions` entry from `spec.instructions.sample_questions` (the agent author's
+   own declaration of an in-scope question).
+2. An existing `INPUT_QUERY` from `<AGENT_NAME>_EVAL` if the table already exists.
+3. A question naming a concrete metric and dimension from the primary semantic view.
+
+Do **not** use a generic probe like "hello" or "what can you do?" — those are correctly
+answered without a tool call, and would produce a false green in the opposite direction.
+
+```sql
+WITH resp AS (
+  SELECT TRY_PARSE_JSON(
+    SNOWFLAKE.CORTEX.DATA_AGENT_RUN(
+      '<AGENT_FQN>',
+      $${"messages":[{"role":"user","content":[{"type":"text","text":"<SMOKE_QUESTION>"}]}],"stream":false}$$
+    )
+  ) AS r
+)
+SELECT
+    COUNT_IF(f.value:type::STRING = 'tool_use')    AS TOOL_USE_BLOCKS,
+    COUNT_IF(f.value:type::STRING = 'tool_result') AS TOOL_RESULT_BLOCKS,
+    COUNT_IF(f.value:type::STRING = 'text')        AS TEXT_BLOCKS,
+    ARRAY_AGG(DISTINCT f.value:type::STRING)       AS BLOCK_TYPES
+FROM resp, LATERAL FLATTEN(input => r:content) f;
+```
+
+Set `timeout_seconds` to at least 300 — agent invocations are slow and a client-side timeout
+here is not a tool-routing failure.
+
+**Gate — evaluate in this order:**
+
+| Observation | Verdict |
+|---|---|
+| `TOOL_USE_BLOCKS >= 1` and `TOOL_RESULT_BLOCKS >= 1` | **PASS** — proceed |
+| `TOOL_USE_BLOCKS >= 1`, `TOOL_RESULT_BLOCKS = 0` | **HARD STOP** — model routes correctly but tool execution fails (warehouse, grants, or semantic view runtime error). Inspect the `tool_result` / error content blocks. |
+| `TOOL_USE_BLOCKS = 0`, `TEXT_BLOCKS >= 1` | **HARD STOP** — this is the silent-failure mode. The model answered from its own knowledge and ignored every tool. Re-check Step 1.2, then the orchestration instructions. |
+| Query errors or returns no content blocks | **HARD STOP** — agent is not invokable at all. Check grants (`SNOWFLAKE.CORTEX_USER`, agent USAGE) and warehouse availability. |
+
+Blocks in **both** INTERACTIVE and AUTONOMOUS modes. This is a data-integrity gate, not a
+judgment gate — no operator decision makes a tool-blind agent worth evaluating.
+
+Log the verdict:
+```
+Smoke Test: <AGENT_FQN>
+  Question:     "<SMOKE_QUESTION>"
+  tool_use:     {N} block(s)   {tool names invoked}
+  tool_result:  {N} block(s)
+  Verdict:      PASS | BLOCKER
+```
+
+> The smoke test uses `DATA_AGENT_RUN` because this skill already executes Snowflake operations
+> through SQL and the CLI. It returns the response content blocks needed to verify tool use.
+
+**STOP GATE (INTERACTIVE):** Present agent summary (model, tools, tool-description check,
+semantic views, current flags, smoke test verdict). Confirm before proceeding.
+**AUTONOMOUS:** log the summary, proceed.
+
+---
+
+## Phase 2: Create Variants
+
+Load `references/variant-matrix.md` for the default matrix.
+
+### Step 2.0: Select Variants
+
+Present the default matrix and ask (INTERACTIVE):
+
+> "Which variants do you want to test?"
+> 1. **Model comparison** — _MODEL_A, _MODEL_B, _MODEL_C (recommended for first sweep; works for any agent)
+> 2. **Conditional flag variants** — add _VQR, _CHART, or _BUDGET_HIGH only if the agent uses the relevant feature
+> 3. **Custom selection** — pick from the matrix or define custom variants
+
+**AUTONOMOUS:** select option 1 (Model comparison) — it's the matrix's own stated default
+and works for any agent. Log the selection.
+
+Store the selected variants as `<VARIANTS>` list. All subsequent phases iterate over only the selected variants.
+
+### Step 2.1: Generate Variant Specs
+
+For each selected variant:
+1. Start with the original agent spec
+2. **Model variants** (`_MODEL_A/B/C`): Change `models.orchestration` to the target model. Keep everything else identical.
+3. **Conditional flag variants** (`_VQR`, `_CHART`, etc.): Modify the `experimental` section per the matrix. Keep everything else identical.
+
+### Step 2.2: Generate CREATE AGENT SQL
+
+For each variant, generate:
+```sql
+CREATE AGENT <DATABASE>.<SCHEMA>.<AGENT_NAME>_{SUFFIX}
+FROM SPECIFICATION $$
+<modified_spec_json>
+$$;
+```
+
+Use `CHR(39)` escaping if the spec contains literal `$$` in instruction text.
+
+**Critical:** All variants MUST be in the same schema as the eval dataset. The eval task DAG resolves agent names relative to the task's schema, ignoring FQN.
+
+**STOP GATE (INTERACTIVE):** Present the CREATE SQL for all 3 variants. Ask user: "Want me to create a rollback clone first so we can undo this?" Then execute upon confirmation.
+
+**AUTONOMOUS:** create the rollback clone (the safer default — this is a mutating DDL
+action, so default to reversible, not to skipping the safety net), log the decision, execute.
+
+### Step 2.3: Verify Deployment
+
+For each variant:
+```sql
+DESCRIBE AGENT <DATABASE>.<SCHEMA>.<AGENT_NAME>_{SUFFIX};
+```
+
+Confirm all selected variants are deployed with correct spec changes.
+
+### Step 2.4: Per-Variant Smoke Test
+
+**Gate ID:** `MODELTEST-VARIANT-SMOKE-FAIL` — **TERMINATE**
+
+Step 1.5 proved the *baseline* agent calls its tools. That does not carry over to the variants.
+Tool routing is a behavior of the orchestration model, so a model variant can ignore tools that
+the baseline model used correctly — and for model comparison that is precisely the failure this
+skill exists to detect, not to trip over. A variant that never calls a tool contributes
+`2 x <RUNS_PER_SPLIT>` eval runs of `Invocation failed`, and those wasted runs are only
+discovered in Phase 6.
+
+Re-run the Step 1.5 smoke test against **every** variant, using the **same**
+`<SMOKE_QUESTION>` so the comparison is apples-to-apples:
+
+```sql
+-- Repeat for each variant in <VARIANTS>
+WITH resp AS (
+  SELECT TRY_PARSE_JSON(
+    SNOWFLAKE.CORTEX.DATA_AGENT_RUN(
+      '<DATABASE>.<SCHEMA>.<AGENT_NAME>_{SUFFIX}',
+      $${"messages":[{"role":"user","content":[{"type":"text","text":"<SMOKE_QUESTION>"}]}],"stream":false}$$
+    )
+  ) AS r
+)
+SELECT
+    COUNT_IF(f.value:type::STRING = 'tool_use')    AS TOOL_USE_BLOCKS,
+    COUNT_IF(f.value:type::STRING = 'tool_result') AS TOOL_RESULT_BLOCKS,
+    COUNT_IF(f.value:type::STRING = 'text')        AS TEXT_BLOCKS
+FROM resp, LATERAL FLATTEN(input => r:content) f;
+```
+
+Report the matrix:
+```
+Variant Smoke Test (question: "<SMOKE_QUESTION>")
+  {VARIANT_1}:  tool_use=2  tool_result=2  → PASS
+  {VARIANT_2}:  tool_use=1  tool_result=1  → PASS
+  {VARIANT_3}:  tool_use=0  tool_result=0  → BLOCKER (answered as plain text)
+```
+
+**Gate:**
+- **All variants PASS:** proceed to Phase 3.
+- **Some variants fail, at least 2 pass:** do NOT silently continue with a partial matrix.
+  Drop the failing variants from `<VARIANTS>` so no configs or eval runs are generated for
+  them, and record the exclusion — "model X does not invoke tools for this agent" is a
+  legitimate and reportable comparison finding, and must appear in the Phase 7 results table
+  as `EXCLUDED — no tool invocation` rather than being omitted. INTERACTIVE: confirm the
+  reduced variant list. AUTONOMOUS: apply the reduction and log it.
+- **Fewer than 2 variants pass:** HARD STOP in both modes — there is nothing left to compare.
+
+Blocks in both modes. Cost of this step is `len(<VARIANTS>)` invocations; it prevents
+`len(<VARIANTS>) x 2 x <RUNS_PER_SPLIT>` wasted eval runs.
+
+---
+
+## Phase 3: Build/Validate Eval Dataset
+
+### Step 3.1: Check for Existing Dataset
+
+```sql
+SELECT COUNT(*) FROM INFORMATION_SCHEMA.TABLES
+WHERE TABLE_SCHEMA = '<SCHEMA>' AND TABLE_NAME = '<AGENT_NAME>_EVAL';
+```
+
+**If exists:** Skip to Step 3.3 (validate).
+
+**If not exists:** Create the table using the schema from `references/eval-table-schema.md`:
+
+```sql
+CREATE TABLE <DATABASE>.<SCHEMA>.<AGENT_NAME>_EVAL (
+    TEST_ID        NUMBER(38,0) AUTOINCREMENT,
+    TEST_CATEGORY  VARCHAR,
+    INPUT_QUERY    VARCHAR      NOT NULL,
+    GROUND_TRUTH   VARIANT,
+    SPLIT          VARCHAR      DEFAULT 'VALIDATION'
+);
+```
+
+Ask the user how they want to populate it:
+
+> 1. **Import from text file** — provide a file with one question per line (recommended for quick start)
+> 2. **Manual entry** — write INSERT statements by hand
+> 3. **Already have a table** — point to an existing table to import from
+
+If **Option 1 (text file import):**
+
+1. Read the file path from the user. Parse it — one question per line, blank lines ignored, lines starting with `#` treated as category headers.
+
+   Format:
+   ```
+   # customer_lookup
+   Show me the full profile for customer Alex Johnson
+   What is the risk tier for account ACC-1001?
+
+   # operations
+   Which regions had the most incidents last week?
+   Show me the coverage report for the West region
+   ```
+
+   Lines after a `# category` header are assigned that TEST_CATEGORY. Lines before any header get category `general`.
+
+2. INSERT the questions (without ground truth yet):
+   ```sql
+   INSERT INTO <DATABASE>.<SCHEMA>.<AGENT_NAME>_EVAL (TEST_CATEGORY, INPUT_QUERY)
+   VALUES ('<category>', '<question>');
+   ```
+
+3. **Auto-generate ground truth** — for each question, run it against the semantic view(s) identified in Phase 1:
+   ```bash
+   cortex analyst query "<INPUT_QUERY>" --view=<SEMANTIC_VIEW_FQN>
+   ```
+   Capture the analyst's text response as the candidate ground truth.
+
+4. UPDATE the table with generated ground truth:
+   ```sql
+   UPDATE <DATABASE>.<SCHEMA>.<AGENT_NAME>_EVAL
+   SET GROUND_TRUTH = PARSE_JSON('{"ground_truth_output": "<analyst_response>"}')
+   WHERE TEST_ID = <id>;
+   ```
+
+5. **STOP GATE — Human Review (INTERACTIVE mode only):** Present ALL generated ground truth answers in a table:
+
+   | TEST_ID | Category | Question (truncated) | Generated Ground Truth (truncated) | Status |
+   |---|---|---|---|---|
+   | 1 | customer_lookup | Show me the full profile... | Alex Johnson (CUS-0001...) | REVIEW |
+   | 2 | customer_lookup | What is the risk tier... | Account ACC-1001 has... | REVIEW |
+   | ... | ... | ... | ... | ... |
+
+   For each row, the user can:
+   - **Accept** — ground truth is correct as-is
+   - **Edit** — provide a corrected ground truth
+   - **Delete** — remove the question from the eval set (bad question)
+
+   Questions where the analyst returned an error or empty result are flagged as `NEEDS ATTENTION`.
+
+   Do NOT proceed until the user has reviewed all rows. Apply edits/deletions, then re-count to confirm >= 10 valid questions remain.
+
+   **AUTONOMOUS mode:** Accept all rows except `NEEDS ATTENTION`. Delete `NEEDS ATTENTION`
+   rows (bad question, no usable answer). Log one `GATE_AUTO_RESOLVED` line per accepted
+   batch (counts, not per-row) and one line per deletion. Re-count to confirm >= 10 valid
+   questions remain — if not, this is a genuine data-integrity gate and still hard-stops.
+
+If **Option 2 (manual):** Show the INSERT format from `references/eval-table-schema.md`. Do NOT proceed until `SELECT COUNT(*) FROM <AGENT_NAME>_EVAL` returns >= 10 rows.
+
+If **Option 3 (import from table):** Ask for the source table FQN. Validate it has at minimum an `INPUT_QUERY` or similarly named VARCHAR column. INSERT into the eval table, then run the ground truth auto-generation flow from Option 1 Step 3-5 for any rows with NULL GROUND_TRUTH.
+
+### Step 3.2: Assign DEV/TEST Splits
+
+Check if splits already exist:
+```sql
+SELECT DISTINCT SPLIT FROM <DATABASE>.<SCHEMA>.<AGENT_NAME>_EVAL WHERE SPLIT IS NOT NULL;
+```
+
+- **2 distinct values:** Ask user which is DEV, which is TEST (INTERACTIVE). **AUTONOMOUS:**
+  assume the value with more rows is TRAIN/DEV (matches the 45/55 default ratio below);
+  log the assumption.
+- **0-1 values:** Assign splits — 45% DEV (`TRAIN`) / 55% TEST (`VALIDATION`), stratified by TEST_CATEGORY:
+
+```sql
+UPDATE <DATABASE>.<SCHEMA>.<AGENT_NAME>_EVAL
+SET SPLIT = 'TRAIN'
+WHERE TEST_ID IN (
+    SELECT TEST_ID FROM (
+        SELECT TEST_ID,
+               ROW_NUMBER() OVER (PARTITION BY TEST_CATEGORY ORDER BY RANDOM(42)) AS rn,
+               COUNT(*) OVER (PARTITION BY TEST_CATEGORY) AS cat_total
+        FROM <DATABASE>.<SCHEMA>.<AGENT_NAME>_EVAL
+    )
+    WHERE rn <= ROUND(cat_total * 0.45)
+);
+```
+
+Create views:
+```sql
+CREATE OR REPLACE VIEW <DATABASE>.<SCHEMA>.<AGENT_NAME>_EVAL_DEV AS
+SELECT * FROM <DATABASE>.<SCHEMA>.<AGENT_NAME>_EVAL WHERE SPLIT = 'TRAIN';
+
+CREATE OR REPLACE VIEW <DATABASE>.<SCHEMA>.<AGENT_NAME>_EVAL_TEST AS
+SELECT * FROM <DATABASE>.<SCHEMA>.<AGENT_NAME>_EVAL WHERE SPLIT = 'VALIDATION';
+```
+
+### Step 3.3: Validate Ground Truth Completeness
+
+Run the validation query from `references/eval-table-schema.md`:
+```sql
+SELECT
+    SPLIT,
+    COUNT(*) AS TOTAL,
+    COUNT_IF(GROUND_TRUTH IS NULL) AS NULL_GT,
+    COUNT_IF(GROUND_TRUTH IS NOT NULL
+             AND GROUND_TRUTH:ground_truth_output::STRING IS NULL) AS MISSING_OUTPUT,
+    COUNT_IF(GROUND_TRUTH IS NOT NULL
+             AND GROUND_TRUTH:ground_truth_output::STRING IS NOT NULL
+             AND LEN(TRIM(GROUND_TRUTH:ground_truth_output::STRING)) = 0) AS BLANK_OUTPUT,
+    TOTAL - NULL_GT - MISSING_OUTPUT - BLANK_OUTPUT AS VALID
+FROM <DATABASE>.<SCHEMA>.<AGENT_NAME>_EVAL
+GROUP BY SPLIT
+ORDER BY SPLIT;
+```
+
+**Gate:** `VALID = TOTAL` for ALL splits. If any gaps → **HARD STOP**. List affected rows and require fixes before proceeding.
+
+**STOP GATE (INTERACTIVE):** Present split distribution table and GT validation results. **AUTONOMOUS:** log the table, proceed (the `VALID = TOTAL` gate above already covers the real blocking condition).
+
+---
+
+## Phase 4: Verify Ground Truth
+
+This phase confirms that eval questions are actually answerable by the agent's semantic views.
+
+Load `references/gt-verification.md` for the full methodology.
+
+### Step 4.1: Run Verification Queries
+
+For each INPUT_QUERY in the eval table:
+
+```bash
+cortex analyst query "<INPUT_QUERY>" --view=<SEMANTIC_VIEW_FQN>
+```
+
+If the agent has multiple semantic views, route each question to the most likely view based on `TEST_CATEGORY` or keyword matching.
+
+### Step 4.2: Classify Results
+
+| Result | Classification |
+|---|---|
+| Returns 1+ rows | PASS |
+| Returns 0 rows | WARN — check if GT expects "no results" |
+| Error / invalid SQL | FAIL |
+| Analyst refuses query | WARN — may be out of scope |
+
+### Step 4.3: Report and Gate
+
+```
+Ground Truth Verification: {PASS} PASS / {WARN} WARN / {FAIL} FAIL out of {TOTAL}
+```
+
+- **0 FAIL, 0 WARN:** Proceed — no gate, AUTONOMOUS or INTERACTIVE.
+- **FAIL > 0:** HARD STOP — fix or remove broken questions. Blocks in both modes (data-integrity, not judgment).
+- **WARN only:** Soft gate — review. Edge-case questions expecting empty results are valid. Others should be fixed.
+
+**STOP GATE (INTERACTIVE, WARN>0 or FAIL>0 only):** Present verification report. User must
+acknowledge before proceeding. **AUTONOMOUS mode:** for WARN-only, keep the empty-result
+rows (valid edge cases) as-is, log the auto-resolution, and proceed — FAIL still hard-stops.
+
+---
+
+## Phase 5: Generate YAML Configs + Upload to Stage
+
+### Step 5.1: Create Stage
+
+```sql
+CREATE STAGE IF NOT EXISTS <DATABASE>.<SCHEMA>.AGENT_FLAG_TESTER_CONFIGS
+  ENCRYPTION = (TYPE = 'SNOWFLAKE_SSE');
+```
+
+### Step 5.2: Generate YAML Files
+
+Load `references/eval-config-template.yaml` as the template.
+
+For each combination of:
+- **Variant:** each selected variant from `<VARIANTS>` (2 or 3)
+- **Split:** DEV, TEST (2)
+- **Run slot:** r1 through r`<RUNS_PER_SPLIT>` (N)
+
+Generate a YAML file: `config_{variant}_{split}_r{N}.yaml`
+
+Substitutions per file:
+- `{DATABASE}`, `{SCHEMA}` — from parameters
+- `{VIEW_NAME}` — `<AGENT_NAME>_EVAL_DEV` or `<AGENT_NAME>_EVAL_TEST`
+- `{DATASET_NAME}` — `<AGENT_NAME>_{variant}_{split}_ds_r{N}` (unique per slot to avoid version lock conflicts)
+- `{AGENT_FQN}` — `<DATABASE>.<SCHEMA>.<AGENT_NAME>_{SUFFIX}`
+- `{VARIANT}` — variant suffix name
+- `{DESCRIPTION}` — `"Flag test: {VARIANT} variant, {SPLIT} split, run {N}"`
+
+Total files: `len(<VARIANTS>) × 2 × <RUNS_PER_SPLIT>` (e.g., 3 variants × 2 splits × 3 runs = 18)
+
+### Step 5.3: Upload to Stage
+
+Write each YAML to a local temp file and PUT to stage:
+```sql
+PUT 'file:///tmp/config_{variant}_{split}_r{N}.yaml'
+    @<DATABASE>.<SCHEMA>.AGENT_FLAG_TESTER_CONFIGS/
+    AUTO_COMPRESS=FALSE OVERWRITE=TRUE;
+```
+
+### Step 5.4: Verify Upload
+
+```sql
+LIST @<DATABASE>.<SCHEMA>.AGENT_FLAG_TESTER_CONFIGS/;
+```
+
+Confirm file count matches expected (3 × 2 × `<RUNS_PER_SPLIT>`).
+
+**STOP GATE (INTERACTIVE):** Show config summary (variants × splits × runs = total files). Confirm before firing evals. **AUTONOMOUS:** log the summary, fire evals (compute cost, not a judgment call — same treatment as other Phase 1/2 courtesy checkpoints).
+
+---
+
+## Phase 6: Fire Eval Runs
+
+### Step 6.1: Launch All Runs
+
+Fire all runs simultaneously — they execute asynchronously:
+
+```sql
+-- Repeat for each config file
+CALL EXECUTE_AI_EVALUATION(
+    'START',
+    OBJECT_CONSTRUCT('run_name', '<RUN_PREFIX>_{variant}_{split}_r{N}'),
+    '@<DATABASE>.<SCHEMA>.AGENT_FLAG_TESTER_CONFIGS/config_{variant}_{split}_r{N}.yaml'
+);
+```
+
+Use `snow sql` CLI to bypass CoCo SQL timeout for system functions:
+```bash
+snow sql -c <CONNECTION> -q "
+    USE DATABASE <DATABASE>;
+    USE SCHEMA <SCHEMA>;
+    CALL EXECUTE_AI_EVALUATION(
+        'START',
+        OBJECT_CONSTRUCT('run_name', '<RUN_PREFIX>_{variant}_{split}_r{N}'),
+        '@<DATABASE>.<SCHEMA>.AGENT_FLAG_TESTER_CONFIGS/config_{variant}_{split}_r{N}.yaml'
+    );
+"
+```
+
+Fire all calls in rapid succession (background with `&` in bash if needed). Each returns immediately.
+
+### Step 6.2: Poll for Completion
+
+Poll every 60 seconds using STATUS:
+
+```sql
+CALL EXECUTE_AI_EVALUATION(
+    'STATUS',
+    OBJECT_CONSTRUCT('run_name', '<RUN_PREFIX>_{variant}_{split}_r{N}'),
+    '@<DATABASE>.<SCHEMA>.AGENT_FLAG_TESTER_CONFIGS/config_{variant}_{split}_r{N}.yaml'
+);
+```
+
+Status values: `CREATED` → `INVOCATION_IN_PROGRESS` → `INVOCATION_COMPLETED` → `COMPUTATION_IN_PROGRESS` → `COMPLETED`
+
+Alternative: use `GET_AI_EVALUATION_DATA` to check for scored results:
+```sql
+SELECT COUNT(*) AS COMPLETED_METRICS
+FROM TABLE(SNOWFLAKE.LOCAL.GET_AI_EVALUATION_DATA(
+    '<DATABASE>', '<SCHEMA>', '<AGENT_NAME>_{SUFFIX}', 'CORTEX AGENT',
+    '<RUN_PREFIX>_{variant}_{split}_r{N}'
+))
+WHERE METRIC_NAME IS NOT NULL;
+```
+
+Metric rows indicate progress only. Follow `../agent-evaluation/references/completion-contract.md`: require terminal COMPLETED and validated question/metric coverage for each variant before comparison.
+
+### Step 6.3: Handle Failures
+
+If "Dataset version already exists" error:
+1. Wait 2-3 minutes and retry that slot
+2. If persists 5+ min, clear stale lock:
+   ```sql
+   ALTER DATASET <DATABASE>.<SCHEMA>.<DATASET_NAME>
+   DROP VERSION 'SYSTEM_AI_OBS_CORTEX_AGENT_DATASET_VERSION_DO_NOT_DELETE';
+   ```
+3. **Never drop the dataset itself** — only the version lock
+
+If a run reports `PARTIALLY_COMPLETED`: check `STATUS_DETAILS` array for error messages.
+
+### Step 6.4: Confirm All Complete
+
+All runs must reach `COMPLETED` before proceeding. Report:
+```
+Eval Runs: {COMPLETED}/{TOTAL} complete
+  MODEL_A_DEV:  r1 ✓  r2 ✓  r3 ✓
+  MODEL_A_TEST: r1 ✓  r2 ✓  r3 ✓
+  MODEL_B_DEV:  r1 ✓  r2 ✓  r3 ✓
+  ...
+```
+
+---
+
+## Phase 7: Extract Results + Recommend
+
+### Step 7.1: Extract Aggregate Scores
+
+For each variant × split, compute mean ± stddev across all `<RUNS_PER_SPLIT>` runs:
+
+```sql
+SELECT METRIC_NAME,
+       ROUND(AVG(EVAL_AGG_SCORE) * 100, 1) AS MEAN_PCT,
+       ROUND(STDDEV(EVAL_AGG_SCORE) * 100, 1) AS STDDEV_PCT,
+       COUNT(*) AS N
+FROM (
+    SELECT * FROM TABLE(SNOWFLAKE.LOCAL.GET_AI_EVALUATION_DATA(
+        '<DATABASE>', '<SCHEMA>', '<AGENT_NAME>_{SUFFIX}', 'CORTEX AGENT',
+        '<RUN_PREFIX>_{variant}_{split}_r1'
+    ))
+    UNION ALL
+    SELECT * FROM TABLE(SNOWFLAKE.LOCAL.GET_AI_EVALUATION_DATA(
+        '<DATABASE>', '<SCHEMA>', '<AGENT_NAME>_{SUFFIX}', 'CORTEX AGENT',
+        '<RUN_PREFIX>_{variant}_{split}_r2'
+    ))
+    -- ... repeat through r<RUNS_PER_SPLIT>
+)
+WHERE METRIC_NAME IS NOT NULL
+GROUP BY METRIC_NAME;
+```
+
+### Step 7.2: Build Comparison Table
+
+Present a summary table:
+
+| Variant | answer_correctness DEV | answer_correctness TEST | logical_consistency DEV | logical_consistency TEST | tool_selection DEV | tool_selection TEST |
+|---|---|---|---|---|---|---|
+| {VARIANT_1} | X% ± S% | X% ± S% | X% ± S% | X% ± S% | X% ± S% | X% ± S% |
+| {VARIANT_2} | X% ± S% | X% ± S% | X% ± S% | X% ± S% | X% ± S% | X% ± S% |
+| {VARIANT_N} | X% ± S% | X% ± S% | X% ± S% | X% ± S% | X% ± S% | X% ± S% |
+
+Bold the **winner per metric** (highest TEST mean).
+
+### Step 7.3: Per-Question Divergence Analysis
+
+Find questions where variants diverge significantly on TEST correctness:
+
+```sql
+-- For each run, get per-question scores across variants
+-- Identify questions where MAX(score) - MIN(score) > 0.3 across variants
+```
+
+Present the top 10 most-divergent questions with per-variant scores.
+
+### Step 7.4: Recommend Winner
+
+Recommendation order: **accuracy, then speed, then cost**. Do not combine these into a weighted score that lets cheap, fast failures win.
+
+1. **Accuracy gate:** Use the user's declared target and metric definition. Report mean answer-correctness and full-credit answer rate separately; a 90% mean judge score is not 90% fully correct answers. Require complete repeated evaluations on the same frozen question set and judge version. If no model qualifies, recommend none and continue development rather than silently relaxing the target.
+2. **Accuracy preference:** Prefer better confirmed accuracy among qualifying models. Treat differences within observed uncertainty as unresolved, not an automatic win. Logical consistency and tool metrics remain quality diagnostics or explicit user-defined floors, not replacements for answer correctness.
+3. **Speed:** Among models with comparable qualifying accuracy, prefer lower response latency. Report mean, median, and p95 using one record per request, not duplicated metric rows. Match workload, budgets, warehouse conditions, and interleave run order; disclose cache and concurrency differences. Small timing differences without adequate evidence do not establish a winner.
+4. **Cost:** Among models with comparable qualifying accuracy and speed, prefer lower measured cost per request. Match request IDs to usage, report coverage and accounting latency, and separate agent token credits, warehouse compute, and evaluation-judge cost. Missing usage is unknown, not zero. Token counts alone are not prices; label estimates explicitly.
+
+Present accuracy, latency, and cost together in the comparison table. A faster or cheaper model below the accuracy threshold is a tradeoff option, not the recommended winner. If evidence is insufficient to distinguish qualifying models, report no clear winner and retain the existing configuration. Explain any user-authorized change in priorities before applying it.
+
+Present recommendation with reasoning.
+
+**STOP GATE (INTERACTIVE):** Ask user which variant to promote (or none). If promoting:
+1. Apply winning flags to the original agent
+2. Drop the 3 test variants
+3. Clean up stage configs
+
+**AUTONOMOUS:** promote the Step 7.4 recommended winner (the scoring logic above already
+produces a deterministic pick) unless it beats the original by less than a negligible
+margin, in which case promote none and log "no clear winner — kept original." Log the
+decision either way, then apply/cleanup as above.
+
+---
+
+## Phase 8: Optimization Handoff (Optional)
+
+After promoting a winner, check if the `agent-optimizer` skill is available in this plugin:
+
+```bash
+cortex plugin list | grep cortex-agent-toolkit
+```
+
+**If NOT_FOUND:** Skip this phase. Present final summary and proceed to Cleanup.
+
+**If AVAILABLE:** Ask the user:
+
+> "Flag winner selected and applied. Do you want to optimize the agent's instructions next?"
+> 1. **Yes — start optimization loop** (recommended: instructions + flags interact)
+> 2. **No — done for now**
+
+If **Yes:**
+
+1. Record the flag sweep baseline in a file the optimization skill can read:
+
+   Write `flag_sweep_baseline.json` to the agent's workspace (or current directory):
+   ```json
+   {
+     "sweep_date": "<TIMESTAMP>",
+     "winning_variant": "<VARIANT_SUFFIX>",
+     "winning_flags": {
+       "<winning_variant_flags>": {}
+     },
+     "baseline_scores": {
+       "answer_correctness": { "dev_mean": 0.XX, "test_mean": 0.XX },
+       "logical_consistency": { "dev_mean": 0.XX, "test_mean": 0.XX },
+       "tool_selection_accuracy": { "dev_mean": 0.XX, "test_mean": 0.XX }
+     },
+     "variant_agents_kept": ["<AGENT_NAME>_{VARIANT_1}", "<AGENT_NAME>_{VARIANT_2}"],
+     "revalidation_interval": 3,
+     "eval_table": "<DATABASE>.<SCHEMA>.<AGENT_NAME>_EVAL",
+     "stage": "<DATABASE>.<SCHEMA>.AGENT_FLAG_TESTER_CONFIGS"
+   }
+   ```
+
+2. **Do NOT drop variant agents** — keep them for re-validation after instruction changes.
+
+3. Hand off to `agent-optimizer` with the SETUP intent if no workspace exists,
+   or OPTIMIZE intent if one already does. The optimization skill will detect
+   `flag_sweep_baseline.json` and use it for re-validation triggers (see that skill's
+   FLAG_REVALIDATION intent).
+
+If **No:** Proceed to Cleanup (drop variants, clean stage).
+
+---
+
+## Cleanup
+
+After the test is complete (and user chose NOT to optimize):
+
+```sql
+-- Drop whichever variant suffixes were created in Phase 2
+-- e.g., DROP AGENT IF EXISTS <DATABASE>.<SCHEMA>.<AGENT_NAME>_{SUFFIX};
+
+-- Optionally remove stage configs
+REMOVE @<DATABASE>.<SCHEMA>.AGENT_FLAG_TESTER_CONFIGS/;
+DROP STAGE IF EXISTS <DATABASE>.<SCHEMA>.AGENT_FLAG_TESTER_CONFIGS;
+
+-- Keep the eval table and views for future testing
+```
+
+If the user chose to optimize (Phase 8 = Yes), skip cleanup — the variant agents and
+configs are needed for flag re-validation during the optimization loop.
+
+---
+
+## Key Learnings
+
+- `cortex_analyst_text_to_sql` tools with a missing or empty `description` are accepted by
+  `CREATE AGENT` and reported as configured by `DESCRIBE AGENT`, but the orchestration model
+  cannot route to them — it answers as plain text and every eval row returns
+  `Invocation failed`. Validate descriptions (Step 1.2) and smoke-test live (Step 1.5).
+- Tool descriptions nest at `tools[].tool_spec.description`, not `tools[].description`
+- `cortex analyst query --view=...` validates the semantic view, **not** the agent — it bypasses
+  the orchestration model entirely, so Phase 4 can pass green while the agent is tool-blind
+- Tool-routing behavior is model-specific: a variant can ignore tools the baseline model used
+  correctly, so the smoke test must be repeated per variant (Step 2.4)
+- As of April 2026, `EnableAgenticAnalyst` is now the default behavior — model choice is the primary lever for accuracy/latency tradeoffs
+- Multi-hop questions (spanning 2+ semantic views) show biggest divergence between variants
+- `EXECUTE_AI_EVALUATION` requires YAML config on a stage — no inline metric specification
+- Agent and eval dataset MUST be in the same schema (task DAG resolves names relative to schema)
+- `GET_AI_EVALUATION_DATA` score column is `EVAL_AGG_SCORE` (not `score` or `metric_value`)
+- `GET_AI_EVALUATION_DATA` input column is `INPUT` (not `INPUT_QUERY`)
+- Custom metrics use `{{tool_info}}` and `{{ground_truth}}` template variables
+- Fire all eval runs simultaneously — they're async and independent
+- Each run slot needs its own unique `dataset_name` to avoid version lock conflicts

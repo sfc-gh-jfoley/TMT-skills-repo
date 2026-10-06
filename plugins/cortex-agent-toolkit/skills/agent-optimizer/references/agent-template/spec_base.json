@@ -1,0 +1,16 @@
+{
+  "models": {
+    "orchestration": "auto"
+  },
+  "orchestration": {
+    "budget": {
+      "seconds": 300,
+      "tokens": 200000
+    }
+  },
+  "tools": [
+    {"tool_spec": {"type": "cortex_search", "name": "search_tool", "description": "Search tool description"}},
+    {"tool_spec": {"type": "cortex_analyst_text_to_sql", "name": "analyze_tool", "description": "Analytics tool description"}},
+    {"tool_spec": {"type": "cortex_analyst_text_to_sql", "name": "query_tool", "description": "Query tool description"}}
+  ]
+}

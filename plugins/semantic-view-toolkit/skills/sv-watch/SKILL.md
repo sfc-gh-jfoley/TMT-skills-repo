@@ -1,0 +1,249 @@
+---
+name: sv-watch
+description: >
+  Monitor semantic views for drift, schema changes, coverage decay, and VQR staleness.
+  Detects when source tables change, new tables appear that should be covered,
+  or verified queries become stale. Cron-compatible for scheduled checks.
+triggers:
+  - watch semantic views
+  - sv drift
+  - monitor SV
+  - schema changed
+  - new tables appeared
+  - SV maintenance
+  - drift detection
+  - stale VQR
+---
+
+# SV Watch Skill
+
+## When to Use
+
+Use this skill for ongoing production maintenance of semantic views:
+- Source table schemas changed (new/dropped/renamed columns)
+- New tables appeared in SV schemas that aren't covered
+- VQRs reference time-relative concepts that have drifted
+- Column usage patterns shifted (popular columns not in SV)
+- Source objects dropped or replaced
+
+---
+
+## Execution Mode
+
+Inherits the session mode declared at the toolkit router. Never re-asks.
+
+- **INTERACTIVE** (one-shot manual runs): Check findings are presented and recommendations require user confirmation before any action is taken.
+- **AUTONOMOUS / Scheduled (cron)**: All watch checks (Checks 1–6) run automatically. All idempotent metadata operations (`CREATE TABLE IF NOT EXISTS` on `WATCH_LOG`) execute without prompting — these are additive and must not block scheduled runs. Report findings are written to `WATCH_LOG`; CRITICAL findings terminate with a `[BLOCKER]` record so the cron caller can detect them.
+
+---
+
+## Run Modes
+
+### Manual (One-shot)
+```
+$semantic-view-toolkit
+"Watch my SVs for drift"
+```
+Runs once, reports findings, suggests actions.
+
+### Scheduled (Cron)
+```
+$semantic-view-toolkit
+"Set up weekly drift monitoring for my SVs"
+```
+Creates a cron job that runs watch checks and alerts on findings.
+
+---
+
+## Watch Checks
+
+### Check 1: Schema Drift
+Compare current DESCRIBE SEMANTIC VIEW against source table schemas:
+- **New columns**: source table has columns not in SV → candidate additions
+- **Dropped columns**: SV references columns that no longer exist → CRITICAL
+- **Type changes**: column data type changed in source → potential breakage
+- **Renamed columns**: column disappeared + new similarly-named column appeared → likely rename
+
+```sql
+-- Get current source columns
+SELECT TABLE_CATALOG, TABLE_SCHEMA, TABLE_NAME, COLUMN_NAME, DATA_TYPE
+FROM <DB>.INFORMATION_SCHEMA.COLUMNS
+WHERE (TABLE_SCHEMA, TABLE_NAME) IN (
+    -- tables from DESCRIBE SEMANTIC VIEW
+);
+
+-- Compare against SV_COLUMNS from DESCRIBE
+```
+
+### Check 2: Coverage Decay
+Tables in the same schemas as SV sources that are now actively queried but not covered:
+
+```sql
+-- Tables queried in last 30 days that share schema with SV tables
+WITH sv_schemas AS (...),
+queried_tables AS (
+    SELECT DISTINCT obj.value:objectName::VARCHAR AS table_fqn
+    FROM SNOWFLAKE.ACCOUNT_USAGE.ACCESS_HISTORY ah,
+        LATERAL FLATTEN(input => ah.BASE_OBJECTS_ACCESSED) obj
+    WHERE ah.QUERY_START_TIME >= DATEADD('day', -30, CURRENT_TIMESTAMP())
+)
+SELECT qt.table_fqn
+FROM queried_tables qt
+WHERE qt.table_fqn NOT IN (SELECT fqn FROM sv_source_tables)
+-- Note: sv_source_tables must be populated from DESCRIBE SEMANTIC VIEW output
+-- (filter for "object_kind" = 'TABLE', extract "property_value" where "property" = 'BASE_TABLE_*')
+  AND SPLIT_PART(qt.table_fqn, '.', 2) IN (SELECT schema_name FROM sv_schemas);
+```
+
+### Check 3: VQR Staleness
+Detect VQRs with time-relative references that may have drifted:
+- Pattern match VQR SQL for: `CURRENT_DATE`, `DATEADD`, `last_month`, `this_quarter`
+- Flag VQRs older than 90 days with relative date references
+- Suggest converting to absolute dates or refreshing
+
+### Check 4: Source Object Health
+- Dynamic Tables: check SCHEDULING_STATE (is it ACTIVE or SUSPENDED?)
+- External Tables: check if files still exist
+- Views: check if underlying tables still exist
+
+```sql
+-- DT health check (INFORMATION_SCHEMA.DYNAMIC_TABLES does not exist)
+SHOW DYNAMIC TABLES IN DATABASE <SV_DB>
+  ->> SELECT "name" AS NAME, "scheduling_state" AS SCHEDULING_STATE, "target_lag" AS TARGET_LAG
+      FROM $1
+      WHERE "name" IN (-- DT names from SV sources);
+```
+
+### Check 5: Usage Pattern Shift
+Compare column access patterns from last 30 days vs previous 30 days:
+- Columns with growing access that aren't in SV → suggest adding
+- SV columns with declining access → informational (don't auto-remove)
+
+### Check 6: Materialization Health
+
+For SVs that have `MAX_STALENESS` set (indicating materializations may exist), check that
+all materializations are ACTIVE and refreshing within their staleness window.
+
+```sql
+-- Check if any SV has MAX_STALENESS set
+SELECT semantic_view_name, semantic_view_database_name, semantic_view_schema_name,
+       max_stalesness_sec
+FROM SNOWFLAKE.ACCOUNT_USAGE.SEMANTIC_VIEWS
+WHERE max_stalesness_sec IS NOT NULL
+  AND semantic_view_database_name = '<DB>'
+  AND deleted IS NULL;
+```
+
+For each SV with MAX_STALENESS set:
+
+```sql
+-- Check refresh history — flag SUSPENDED state or long gaps between refreshes
+SELECT name, state, state_message,
+       refresh_start_time, refresh_end_time,
+       warehouse, refresh_action
+FROM TABLE(INFORMATION_SCHEMA.SEMANTIC_VIEW_MATERIALIZATION_REFRESH_HISTORY(
+  NAME => '<mat_name>'
+))
+ORDER BY refresh_start_time DESC
+LIMIT 5;
+```
+
+**Flag as WARNING when:**
+- `state = 'SUSPENDED'` — materialization auto-suspended (refreshes falling behind MAX_STALENESS)
+- Last successful refresh timestamp is > 2× MAX_STALENESS ago
+
+**Flag as INFO when:**
+- `refresh_action = 'NO_DATA'` consistently — no new data arriving; materialization is current
+- Refresh duration is approaching MAX_STALENESS — staleness risk increasing
+
+**Output format for Check 6:**
+```
+## WARNING (Materialization Health)
+- [MAT_SUSPENDED] Materialization 'cust_year_rollup' on sv_revenue is SUSPENDED
+    state_message: <error from refresh>
+    Last refresh: <timestamp>
+  → Cause: MAX_STALENESS too tight or base table too large for warehouse
+  → Fix: ALTER SEMANTIC VIEW sv_revenue SET MAX_STALENESS = <higher_value>;
+         ALTER SEMANTIC VIEW sv_revenue RESUME MATERIALIZATION cust_year_rollup;
+  → Or route to sv-materialize for full diagnosis
+```
+
+---
+
+## Output Format
+
+```
+# SV Watch Report: <SV_FQN>
+# Run: <timestamp>
+
+## CRITICAL (Immediate Action Required)
+- [DROPPED_COLUMN] Column ORDERS.STATUS no longer exists in source table
+  → SV will fail on queries referencing this column
+  → Fix: Use `CREATE OR ALTER SEMANTIC VIEW` to remove or remap the affected columns/relationships
+
+## WARNING (Review Recommended)
+- [NEW_COLUMNS] 3 new columns in ORDERS table not in SV:
+    - SHIPPING_METHOD (VARCHAR) — added 2025-01-15
+    - ESTIMATED_DELIVERY (DATE) — added 2025-01-15
+    - IS_EXPEDITED (BOOLEAN) — added 2025-01-20
+  → Consider adding if relevant to SV domain
+
+- [COVERAGE_DECAY] Table RETURNS (same schema) now gets 45 queries/day
+    but is not in any semantic view
+  → Consider adding to SV or creating new SV
+
+## INFO (No Action Required)
+- [VQR_STALE] VQR "What were last month's sales?" is 95 days old
+    with relative date reference
+  → Consider refreshing or converting to absolute date
+
+- [USAGE_SHIFT] Column ORDERS.PRIORITY access up 340% vs previous period
+    (already in SV as dimension)
+  → No action needed — already covered
+```
+
+---
+
+## Persistence
+
+Watch results are stored in `_SV_TOOLKIT_META.WATCH_LOG`:
+
+> **Note (INTERACTIVE mode only):** When creating `_SV_TOOLKIT_META` for the first time
+> in INTERACTIVE mode, offer: "Want me to create a rollback clone first?
+> (`CREATE DATABASE <db>_RESTORE CLONE <db>`)"
+> In AUTONOMOUS/scheduled mode, `CREATE TABLE IF NOT EXISTS` is additive and idempotent
+> — no prompt; scheduled runs must not block on this.
+
+```sql
+CREATE TABLE IF NOT EXISTS <DB>._SV_TOOLKIT_META.WATCH_LOG (
+    RUN_TIMESTAMP TIMESTAMP_LTZ DEFAULT CURRENT_TIMESTAMP(),
+    SV_FQN VARCHAR,
+    CHECK_TYPE VARCHAR,  -- SCHEMA_DRIFT, COVERAGE_DECAY, VQR_STALE, SOURCE_HEALTH, USAGE_SHIFT, MAT_HEALTH
+    SEVERITY VARCHAR,    -- CRITICAL, WARNING, INFO
+    FINDING VARCHAR,
+    RECOMMENDED_ACTION VARCHAR,
+    RESOLVED BOOLEAN DEFAULT FALSE,
+    RESOLVED_TIMESTAMP TIMESTAMP_LTZ
+);
+```
+
+---
+
+## Cron Integration
+
+To schedule recurring SV health checks, use the `cron_create` tool:
+
+- **Schedule**: `0 9 * * 1` (every Monday at 9am local time)
+- **Prompt**: `"Run sv-watch health check on <SV_FQN>. Load the sv-ddl skill and go to Phase 8 (drift monitor). Connection: <CONNECTION>."`
+
+Alternatively, tell the user to type `/loop` in Cortex Code to set up an interactive monitoring schedule.
+
+---
+
+## Integration with Toolkit
+
+- **Triggers sv-audit**: CRITICAL/WARNING findings can feed into sv-audit for deeper analysis
+- **Triggers sv-iterative-optimizer**: repeated drift patterns suggest optimization opportunities
+- **Triggers sv-materialize**: MAT_HEALTH SUSPENDED findings route to sv-materialize for diagnosis
+- **Fed by sv-ddl**: after creating/modifying a SV, set up watch
+- **Independent**: can run standalone without any prior toolkit usage

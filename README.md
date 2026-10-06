@@ -1,6 +1,6 @@
 # TMT Skills Repository
 
-A [Cortex Code](https://docs.snowflake.com/en/user-guide/cortex-code/cortex-code) skill collection built by the TMT team.
+A [Cortex Code](https://docs.snowflake.com/en/user-guide/cortex-code/cortex-code) skill and plugin collection built by the TMT team.
 
 ## Install
 
@@ -8,81 +8,81 @@ A [Cortex Code](https://docs.snowflake.com/en/user-guide/cortex-code/cortex-code
 cortex plugin install sfc-gh-jfoley/TMT-skills-repo
 ```
 
-After install, skills are available via the skill-loader registry.
-
-## Single Skill Install
+## Single Skill / Plugin Install
 
 ```bash
+# A standalone skill
 cp -R skills/<skill-name> ~/.snowflake/cortex/skills/
+
+# A plugin (with sub-skills)
+cp -R plugins/<plugin-name> ~/.snowflake/cortex/plugins/
 ```
-
-## Skills (28)
-
-### Agent Lifecycle
-| Skill | Description |
-|-------|-------------|
-| `cortex-agent-ddl` | Create/edit agents via SQL DDL with spec validation |
-| `agent-evaluation` | Evaluate agents using native Snowflake evaluations |
-| `agent-flag-tester` | 3-variant flag comparison testing |
-| `cortex-agent-optimization` | Iterative agent optimization with dev/test eval splits |
-| `cortex-agent-flags` | Experimental flags reference + auto-discovery |
-| `query-cortex-agent` | Query agents via DATA_AGENT_RUN SQL |
-| `agent-architect` | Multi-agent project framework |
-
-### Semantic Views
-| Skill | Description |
-|-------|-------------|
-| `semantic-view-ddl` | Generate semantic view DDL from source objects |
-| `semantic-view-discovery` | Discover and explore existing semantic views |
-
-### Operations
-| Skill | Description |
-|-------|-------------|
-| `release-change-monitor` | Track Snowflake release changes |
-| `artifact-drift-monitor` | Detect drift in deployed artifacts |
-| `self-healing-pipeline` | Auto-fix broken pipelines |
-
-### Rule & Memory Governance
-| Skill | Description |
-|-------|-------------|
-| `rule-creator` | Create production-ready rule files |
-| `rule-reviewer` | Review rule quality |
-| `rule-loader` | Load rules into sessions |
-| `bulk-rule-reviewer` | Batch review all rules |
-| `memory-organizer` | Organize/deduplicate memories |
-
-### Productivity
-| Skill | Description |
-|-------|-------------|
-| `architecture-diagram` | Generate architecture diagrams |
-| `coco-usage` | Cortex Code usage patterns |
-| `google-doc-formatter` | Format Google Docs |
-| `lab-builder` | Build workshop labs |
-| `snowflake-gslides` | Generate Google Slides |
-| `skill-loader` | Skill registry and loader |
-
-### Dev & QA
-| Skill | Description |
-|-------|-------------|
-| `skill-tester` | Test skills for correctness |
-| `skill-timing` | Measure skill token/time efficiency |
-| `prompt-determinism-tester` | Verify prompt reproducibility |
-| `doc-reviewer` | Review documentation quality |
-| `plan-reviewer` | Review implementation plan quality |
-
-## Individual Plugin Repos
-
-Each plugin is also available as a standalone install:
-
-| Plugin | Install | Skills |
-|--------|---------|--------|
-| [cortex-agent-toolkit](https://github.com/sfc-gh-jfoley/cortex-agent-toolkit) | `cortex plugin install sfc-gh-jfoley/cortex-agent-toolkit` | cortex-agent-ddl, agent-evaluation, agent-flag-tester, cortex-agent-optimization, cortex-agent-flags, query-cortex-agent |
-| [ops-monitor](https://github.com/sfc-gh-jfoley/ops-monitor) | `cortex plugin install sfc-gh-jfoley/ops-monitor` | release-change-monitor, artifact-drift-monitor, self-healing-pipeline |
-| [rule-governance](https://github.com/sfc-gh-jfoley/rule-governance) | `cortex plugin install sfc-gh-jfoley/rule-governance` | rule-creator, rule-reviewer, rule-loader, bulk-rule-reviewer, memory-organizer |
-| [coco-meta](https://github.com/sfc-gh-jfoley/coco-meta) | `cortex plugin install sfc-gh-jfoley/coco-meta` | skill-tester, skill-timing, prompt-determinism-tester, doc-reviewer, plan-reviewer |
 
 ## Update
 
 ```bash
 cortex plugin update tmt-skills-repo
 ```
+
+---
+
+## Plugins
+
+### cortex-agent-toolkit
+
+Full lifecycle toolkit for Snowflake Cortex Agents: create, evaluate, optimize, query, and manage experimental flags.
+
+| Sub-skill | Description |
+|-----------|-------------|
+| `agent-ddl` | Create/edit agents via SQL DDL with 17-rule spec validation and multi-agent routing |
+| `agent-evaluation` | Evaluate agents using native Snowflake Agent Evaluations |
+| `agent-flags-reference` | Experimental flags reference with search-first doc lookup |
+| `agent-gepa-optimizer` | Population-based evolutionary optimization of agent instructions |
+| `agent-instruction-optimizer` | DSPy MIPROv2 optimizer for agent instructions |
+| `agent-optimizer` | Iterative optimization using dev/test eval splits |
+| `agent-model-tester` | Standalone model variant comparison testing |
+| `agent-query` | Query agents via DATA_AGENT_RUN / AGENT_RUN SQL |
+| `agent-analytical-search` | Configure Cortex Search tools for corpus-wide analytical search |
+| `agent-feedback-analyzer` | Diagnostic triage of CoWork pilot user feedback |
+
+### semantic-view-toolkit
+
+Full lifecycle toolkit for Snowflake Semantic Views: discover, create, evaluate, optimize, audit, and manage VQRs.
+
+| Sub-skill | Description |
+|-----------|-------------|
+| `sv-ddl` | Create semantic views via DDL |
+| `sv-discovery` | Discover optimal domain groupings from account usage |
+| `sv-evaluation` | Evaluate semantic view quality |
+| `sv-audit` | Audit semantic views against query patterns |
+| `sv-iterative-optimizer` | Iterative optimization of semantic views |
+| `sv-gepa-optimizer` | Population-based evolutionary SV optimization |
+| `sv-rearchitect` | Rearchitect semantic views for better coverage |
+| `sv-coverage-checker` | Check semantic view coverage gaps |
+| `sv-materialize` | Materialize semantic view results |
+| `sv-watch` | Monitor semantic view drift |
+| `sv-snippet-suggester` | Suggest VQR snippets |
+| `vqr-generator` | Generate verified query representations |
+| `vqr-curator` | Curate and manage VQRs |
+
+### coco-meta
+
+Quality and meta toolkit for Cortex Code skills and workflows.
+
+| Sub-skill | Description |
+|-----------|-------------|
+| `prompt-determinism-tester` | Swarm-test HOL/demo prompts for build determinism |
+| `skill-tester` | End-to-end skill testing with fixture inputs and assertions |
+| `skill-timing` | Measure skill execution time and performance |
+| `plan-reviewer` | Review LLM-generated plans for executability |
+| `doc-reviewer` | Review documentation for accuracy, completeness, and clarity |
+
+---
+
+## Standalone Skills
+
+| Skill | Description |
+|-------|-------------|
+| `agent-architect` | Multi-agent project framework — research, plan, build, security-gate, and test |
+| `lab-builder` | Build hands-on workshop labs for customers and SEs |
+| `snowhouse-demo-scaffold` | Build Snowflake Intelligence setups via Snowhouse metadata discovery |

@@ -1,1 +1,0 @@
-"""SpecBuilder internal implementation package."""

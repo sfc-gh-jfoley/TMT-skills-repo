@@ -15,25 +15,25 @@ didn't, and proposes improvements to the framework for next time.
 
 ```bash
 # Count rejections
-grep "REJECTED" .agent-project/manifest.log | wc -l
+grep -c '^[^#].*| REVIEW_FAILED |' .agent-project/manifest.log
 
 # Count test failures
-grep "FAIL" .agent-project/manifest.log | wc -l
+grep -c '^[^#].*| TESTER_FAILED |' .agent-project/manifest.log
 
 # Count blocked workers
-grep "BLOCKED" .agent-project/manifest.log | wc -l
+grep -c '^[^#].*| BLOCKED |' .agent-project/manifest.log
 
 # Count escalations
-grep "ESCALATION" .agent-project/manifest.log | wc -l
+grep -c '^[^#].*| ESCALATED |' .agent-project/manifest.log
 
-# Average attempts per task (STARTED entries vs DONE entries)
-STARTS=$(grep -c "STARTED" .agent-project/manifest.log)
-DONES=$(grep -c "DONE" .agent-project/manifest.log)
+# Average attempts per task (CLAIMED entries vs DONE entries)
+CLAIMS=$(grep -c "| CLAIMED |" .agent-project/manifest.log)
+DONES=$(grep -c "| DONE |" .agent-project/manifest.log)
 ```
 
 ### 2. Pattern Analysis
 
-For each REJECTED or FAIL entry, categorize:
+For each REVIEW_FAILED or TESTER_FAILED entry, categorize:
 
 | Pattern | Example | Frequency |
 |---|---|---|
@@ -99,9 +99,17 @@ Write `retrospective.md` to `.agent-project/`:
 
 If the user approves improvements:
 
-1. Edit the specific role file (e.g., `roles/worker.md`) with the proposed addition
-2. Edit `references/security-checklist.md` if new checks proposed
-3. Commit: `git commit -m "retro: apply improvements from <project-slug>"`
+1. Write them to `.agent-project/proposed-improvements.md` in the project — not into
+   the framework's own role files. Record the target file, the proposed change, and
+   the evidence from this run that motivated it.
+2. Commit: `git commit -m "retro: proposed improvements from <project-slug>"`
+3. Tell the user the file is ready to review and apply.
+
+> **Do not edit `roles/*.md` or `references/*.md` in place.** The framework may be
+> installed read-only or shared across projects, so in-place edits either fail or
+> silently fork the installed version — after which no one can tell which variant a
+> given project ran against. Proposing changes as an artifact keeps the framework
+> version identifiable and makes the improvement reviewable before it takes effect.
 
 If declined: no file changes needed.
 
