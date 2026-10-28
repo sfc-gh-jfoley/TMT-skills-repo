@@ -86,3 +86,4 @@ Quality and meta toolkit for Cortex Code skills and workflows.
 | `agent-architect` | Multi-agent project framework — research, plan, build, security-gate, and test |
 | `lab-builder` | Build hands-on workshop labs for customers and SEs |
 | `snowhouse-demo-scaffold` | Build Snowflake Intelligence setups via Snowhouse metadata discovery |
+| `telemetry-to-lab` | Observe a customer's Snowflake usage via Snowhouse (read-only), infer ETL/query/ML/GenAI intent and failures, and hand a de-identified lab intake + lookalike data spec to `lab-builder` |
